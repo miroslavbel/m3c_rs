@@ -1,0 +1,11 @@
+# git
+/.gitconfig
+
+# ide
+/.vscode
+/.idea
+
+# rust
+/debug
+/target
+/Cargo.lock
