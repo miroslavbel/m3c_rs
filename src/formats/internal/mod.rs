@@ -1,5 +1,7 @@
 //! An internal raw program representation.
 
+pub mod literals;
+
 // region: instruction_id
 
 /// Instruction's ids.
