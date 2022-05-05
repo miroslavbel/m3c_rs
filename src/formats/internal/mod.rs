@@ -2,6 +2,10 @@
 
 pub mod literals;
 
+use literals::{
+    LabelIdentifierLiteral, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+};
+
 // region: instruction_id
 
 /// Instruction's ids.
@@ -149,3 +153,17 @@ pub enum InstructionId {
 }
 
 // endregion: instruction_id
+
+#[derive(Copy, Clone)]
+struct VarCmpInstructionData {
+    variable_identificator: VariableIdentifierLiteral,
+    variable_value: VariableValueLiteral,
+}
+
+#[derive(Copy, Clone)]
+enum InstructionData {
+    Simple,
+    Label(LabelIdentifierLiteral),
+    VarCmp(VarCmpInstructionData),
+    String(StringLiteral),
+}
