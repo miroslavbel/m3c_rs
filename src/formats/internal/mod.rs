@@ -154,6 +154,8 @@ pub enum InstructionId {
 
 // endregion: instruction_id
 
+// region: instruction
+
 #[derive(Copy, Clone)]
 struct VarCmpInstructionData {
     variable_identificator: VariableIdentifierLiteral,
@@ -167,3 +169,22 @@ enum InstructionData {
     VarCmp(VarCmpInstructionData),
     String(StringLiteral),
 }
+
+/// Program instruction.
+///
+/// Each instruction has one of the [InstructionId].
+pub struct Instruction {
+    id: InstructionId,
+    data: InstructionData,
+}
+
+impl Instruction {
+    /// Returns the [instruction id].
+    ///
+    /// [instruction id]: [InstructionId]
+    pub fn id(&self) -> InstructionId {
+        self.id
+    }
+}
+
+// endregion: instruction
