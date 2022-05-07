@@ -188,3 +188,29 @@ impl Instruction {
 }
 
 // endregion: instruction
+
+// region: program
+
+/// Raw program representation.
+///
+/// Each program contains [3072](Self::INSTRUCTIONS_PER_PROGRAM) [instructions](Instruction):
+/// * each program contains [16](Self::PAGES_PER_PROGRAM) pages
+/// * each page contains [12](Self::ROWS_PER_PAGE) rows
+/// * each row contains [16](Self::INSTRUCTIONS_PER_ROW) instructions
+pub struct Program {
+    instructions: Box<[Instruction; Self::INSTRUCTIONS_PER_PROGRAM]>,
+}
+
+impl Program {
+    /// Number of pages per program.
+    pub const PAGES_PER_PROGRAM: usize = 16;
+    /// Number of rows per page.
+    pub const ROWS_PER_PAGE: usize = 12;
+    /// Number of instructions per row.
+    pub const INSTRUCTIONS_PER_ROW: usize = 16;
+    /// Number of instruction per program.
+    pub const INSTRUCTIONS_PER_PROGRAM: usize =
+        Self::PAGES_PER_PROGRAM * Self::ROWS_PER_PAGE * Self::INSTRUCTIONS_PER_ROW;
+}
+
+// endregion: program
