@@ -152,6 +152,13 @@ pub enum InstructionId {
     DebugSet = 182,
 }
 
+impl Default for InstructionId {
+    /// Returns [Empty](Self::Empty).
+    fn default() -> Self {
+        Self::Empty
+    }
+}
+
 // endregion: instruction_id
 
 // region: instruction
