@@ -194,6 +194,16 @@ impl Instruction {
     }
 }
 
+impl Default for Instruction {
+    /// Constructs the [Empty](InstructionId::Empty) instruction.
+    fn default() -> Self {
+        Self {
+            id: InstructionId::default(),
+            data: InstructionData::Simple,
+        }
+    }
+}
+
 // endregion: instruction
 
 // region: program
