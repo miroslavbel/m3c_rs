@@ -180,6 +180,7 @@ enum InstructionData {
 /// Program instruction.
 ///
 /// Each instruction has one of the [InstructionId].
+#[derive(Copy, Clone)]
 pub struct Instruction {
     id: InstructionId,
     data: InstructionData,
@@ -228,6 +229,16 @@ impl Program {
     /// Number of instruction per program.
     pub const INSTRUCTIONS_PER_PROGRAM: usize =
         Self::PAGES_PER_PROGRAM * Self::ROWS_PER_PAGE * Self::INSTRUCTIONS_PER_ROW;
+}
+
+impl Default for Program {
+    /// Constructs the program where each instruction is the [Empty](InstructionId::Empty)
+    /// instruction.
+    fn default() -> Self {
+        Self {
+            instructions: Box::new([Instruction::default(); Self::INSTRUCTIONS_PER_PROGRAM]),
+        }
+    }
 }
 
 // endregion: program
