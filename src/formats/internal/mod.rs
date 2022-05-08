@@ -5,6 +5,7 @@ pub mod literals;
 use literals::{
     LabelIdentifierLiteral, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
 };
+use std::ops::{Index, IndexMut};
 
 // region: instruction_id
 
@@ -238,6 +239,19 @@ impl Default for Program {
         Self {
             instructions: Box::new([Instruction::default(); Self::INSTRUCTIONS_PER_PROGRAM]),
         }
+    }
+}
+
+impl Index<usize> for Program {
+    type Output = Instruction;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.instructions[index]
+    }
+}
+
+impl IndexMut<usize> for Program {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.instructions[index]
     }
 }
 
