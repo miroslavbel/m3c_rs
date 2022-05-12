@@ -15,7 +15,7 @@ use std::ops::{Index, IndexMut};
 ///
 /// All values are taken from official client. Values are in range `[0-182]`. There is no ids for
 /// values `13, 34, 41-42, 55-56, 61-73, 75, 78-118, 121-122, 124-130, 150-155`.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum InstructionId {
     Empty = 0,
     Back = 1,
@@ -208,13 +208,13 @@ impl From<InstructionId> for InstructionKind {
 
 // region: instruction
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct VarCmpInstructionData {
-    variable_identificator: VariableIdentifierLiteral,
+    variable_identifier: VariableIdentifierLiteral,
     variable_value: VariableValueLiteral,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum InstructionData {
     Simple,
     Label(LabelIdentifierLiteral),
@@ -225,7 +225,7 @@ enum InstructionData {
 /// Program instruction.
 ///
 /// Each instruction refers to one of the [`InstructionId`] and to one of the [`InstructionKind`].
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Instruction {
     id: InstructionId,
     data: InstructionData,
@@ -262,6 +262,7 @@ impl Default for Instruction {
 /// * each program contains [16](Self::PAGES_PER_PROGRAM) pages
 /// * each page contains [12](Self::ROWS_PER_PAGE) rows
 /// * each row contains [16](Self::INSTRUCTIONS_PER_ROW) instructions
+#[derive(Debug)]
 pub struct Program {
     instructions: Box<[Instruction; Self::INSTRUCTIONS_PER_PROGRAM]>,
 }
