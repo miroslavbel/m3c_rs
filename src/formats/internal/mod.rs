@@ -160,6 +160,21 @@ impl Default for InstructionId {
     }
 }
 
+/// Instructions' kind by containing (or not) additional info (except the [`InstructionId`]).
+///
+/// Each instruction refers to one of these kind.
+pub enum InstructionKind {
+    /// Instructions of this kind don't contain any additional info.
+    Simple,
+    /// Instructions of this kind contain a [label literal](LabelIdentifierLiteral).
+    Label,
+    /// Instructions of this kind contain a [variable literal](VariableIdentifierLiteral) and a
+    /// [value literal](VariableValueLiteral).
+    VarCmp,
+    /// Instructions of this kind contain a [string literal](StringLiteral).
+    String,
+}
+
 // endregion: instruction_id
 
 // region: instruction
@@ -180,7 +195,7 @@ enum InstructionData {
 
 /// Program instruction.
 ///
-/// Each instruction has one of the [InstructionId].
+/// Each instruction refers to one of the [`InstructionId`] and to one of the [`InstructionKind`].
 #[derive(Copy, Clone)]
 pub struct Instruction {
     id: InstructionId,
