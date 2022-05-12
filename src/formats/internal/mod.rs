@@ -153,6 +153,28 @@ pub enum InstructionId {
     DebugSet = 182,
 }
 
+impl InstructionId {
+    /// Returns the appropriate [`InstructionKind`].
+    pub fn kind(self) -> InstructionKind {
+        match self {
+            Self::DebugBreak | Self::DebugSet => InstructionKind::String,
+
+            Self::VarMore | Self::VarLess | Self::VarEqual => InstructionKind::VarCmp,
+
+            Self::GoTo
+            | Self::GoSub
+            | Self::GoSub1
+            | Self::Label
+            | Self::GoSubF
+            | Self::IfNotGoTo
+            | Self::IfGoTo
+            | Self::OnResp => InstructionKind::Label,
+
+            _ => InstructionKind::Simple,
+        }
+    }
+}
+
 impl Default for InstructionId {
     /// Returns [Empty](Self::Empty).
     fn default() -> Self {
@@ -173,6 +195,13 @@ pub enum InstructionKind {
     VarCmp,
     /// Instructions of this kind contain a [string literal](StringLiteral).
     String,
+}
+
+impl From<InstructionId> for InstructionKind {
+    /// Returns the appropriate [`InstructionKind`].
+    fn from(instruction_id: InstructionId) -> Self {
+        instruction_id.kind()
+    }
 }
 
 // endregion: instruction_id
@@ -203,11 +232,13 @@ pub struct Instruction {
 }
 
 impl Instruction {
-    /// Returns the [instruction id].
-    ///
-    /// [instruction id]: [InstructionId]
+    /// Returns the [instruction id](InstructionId).
     pub fn id(&self) -> InstructionId {
         self.id
+    }
+    /// Returns the [instruction kind](InstructionKind).
+    pub fn kind(&self) -> InstructionKind {
+        self.id.kind()
     }
 }
 
