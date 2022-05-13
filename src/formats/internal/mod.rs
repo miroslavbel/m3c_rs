@@ -5,7 +5,28 @@ pub mod literals;
 use literals::{
     LabelIdentifierLiteral, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
 };
+use std::error::Error;
+use std::fmt;
 use std::ops::{Index, IndexMut};
+
+// region: errors
+
+#[derive(Copy, Clone, Debug)]
+pub struct UnsupportedInstructionId {}
+
+impl UnsupportedInstructionId {
+    const DETAILS: &'static str = "unsupported instruction id for this operation";
+}
+
+impl fmt::Display for UnsupportedInstructionId {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", Self::DETAILS)
+    }
+}
+
+impl Error for UnsupportedInstructionId {}
+
+// endregion: errors
 
 // region: instruction_id
 
@@ -232,6 +253,21 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Constructs a new instruction of the [`Simple`](InstructionKind::Simple) kind with the given
+    /// `instruction_id`.
+    ///
+    /// # Errors
+    /// If the given `instruction_id` is not appropriate to the [`Simple`](InstructionKind::Simple)
+    /// kind an [`UnsupportedInstructionId`] will be returned.
+    pub fn new_simple(instruction_id: InstructionId) -> Result<Self, UnsupportedInstructionId> {
+        match instruction_id.kind() {
+            InstructionKind::Simple => Ok(Instruction {
+                id: instruction_id,
+                data: InstructionData::Simple,
+            }),
+            _ => Err(UnsupportedInstructionId {}),
+        }
+    }
     /// Returns the [instruction id](InstructionId).
     pub fn id(&self) -> InstructionId {
         self.id
