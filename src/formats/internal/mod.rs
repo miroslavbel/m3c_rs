@@ -26,6 +26,21 @@ impl fmt::Display for UnsupportedInstructionId {
 
 impl Error for UnsupportedInstructionId {}
 
+#[derive(Copy, Clone, Debug)]
+pub struct InstructionPositionConstructionError {}
+
+impl InstructionPositionConstructionError {
+    const DETAILS: &'static str = "one of the given page, row, or column has an invalid value";
+}
+
+impl fmt::Display for InstructionPositionConstructionError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", Self::DETAILS)
+    }
+}
+
+impl Error for InstructionPositionConstructionError {}
+
 // endregion: errors
 
 // region: instruction_id
@@ -289,6 +304,69 @@ impl Default for Instruction {
 }
 
 // endregion: instruction
+
+// region: instruction_position
+
+/// Describe an instruction position at the program.
+#[derive(Copy, Clone, Debug)]
+pub struct InstructionPosition {
+    page: u8,
+    row: u8,
+    column: u8,
+}
+
+impl InstructionPosition {
+    /// Constructs a new instance with the given `page`, `row` and `column`.
+    ///
+    /// # Errors
+    /// If one of the given `page`, `row`, or `column` has an invalid value an
+    /// [`InstructionPositionConstructionError`] will be returned.
+    pub fn new(
+        page: u8,
+        row: u8,
+        column: u8,
+    ) -> Result<Self, InstructionPositionConstructionError> {
+        if page as usize >= Program::PAGES_PER_PROGRAM
+            || row as usize >= Program::ROWS_PER_PAGE
+            || column as usize >= Program::INSTRUCTIONS_PER_ROW
+        {
+            Err(InstructionPositionConstructionError {})
+        } else {
+            Ok(Self { page, row, column })
+        }
+    }
+    /// Returns the "flat index".
+    pub fn index(self) -> usize {
+        self.page as usize * Program::ROWS_PER_PAGE * Program::INSTRUCTIONS_PER_ROW
+            + self.row as usize * Program::INSTRUCTIONS_PER_ROW
+            + self.column as usize
+    }
+    /// Returns the index of the page.
+    pub fn page(self) -> u8 {
+        self.page
+    }
+    /// Returns the index of the row on page.
+    pub fn row(self) -> u8 {
+        self.row
+    }
+    /// Returns the index of the column in the row.
+    pub fn column(self) -> u8 {
+        self.column
+    }
+}
+
+impl Default for InstructionPosition {
+    /// Constructs an instance pointed to the first instruction in program.
+    fn default() -> Self {
+        Self {
+            page: 0,
+            row: 0,
+            column: 0,
+        }
+    }
+}
+
+// endregion: instruction_position
 
 // region: program
 
