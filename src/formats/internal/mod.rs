@@ -41,6 +41,21 @@ impl fmt::Display for InstructionPositionConstructionError {
 
 impl Error for InstructionPositionConstructionError {}
 
+#[derive(Copy, Clone, Debug)]
+pub struct InstructionPositionOverflowError {}
+
+impl InstructionPositionOverflowError {
+    const DETAILS: &'static str = "operation was not performed, as it results in overflow";
+}
+
+impl fmt::Display for InstructionPositionOverflowError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", Self::DETAILS)
+    }
+}
+
+impl Error for InstructionPositionOverflowError {}
+
 // endregion: errors
 
 // region: instruction_id
@@ -352,6 +367,37 @@ impl InstructionPosition {
     /// Returns the index of the column in the row.
     pub fn column(self) -> u8 {
         self.column
+    }
+    /// Moves this [`InstructionPosition`] to the next position.
+    ///
+    /// # Errors
+    /// If the this [`InstructionPosition`] already points to the last position in the program, an
+    /// [`InstructionPositionOverflowError`] will be returned and the operation will not be performed.
+    pub fn move_forward(mut self) -> Result<(), InstructionPositionOverflowError> {
+        if self.column as usize == Program::INSTRUCTIONS_PER_ROW - 1 {
+            self.move_to_next_row()
+        } else {
+            self.column += 1;
+            Ok(())
+        }
+    }
+    fn move_to_next_row(mut self) -> Result<(), InstructionPositionOverflowError> {
+        // check if `self.row` is the last row on the page
+        if self.row as usize == Program::ROWS_PER_PAGE - 1 {
+            // check if `self.page` is the last page on program
+            if self.page as usize == Program::PAGES_PER_PROGRAM - 1 {
+                Err(InstructionPositionOverflowError {})
+            } else {
+                self.page += 1;
+                self.row = 0;
+                self.column = 0;
+                Ok(())
+            }
+        } else {
+            self.row += 1;
+            self.column = 0;
+            Ok(())
+        }
     }
 }
 
