@@ -462,4 +462,27 @@ impl IndexMut<usize> for Program {
     }
 }
 
+impl Index<InstructionPosition> for Program {
+    type Output = Instruction;
+    /// Performs the indexing (`container[index]`) operation.
+    ///
+    /// # Panics
+    ///
+    /// Will never panic because [`InstructionPosition`] always points to a valid instruction position.
+    fn index(&self, position: InstructionPosition) -> &Self::Output {
+        &self.instructions[position.index()]
+    }
+}
+
+impl IndexMut<InstructionPosition> for Program {
+    /// Performs the mutable indexing (`container[index]`) operation.
+    ///
+    /// # Panics
+    ///
+    /// Will never panic because [`InstructionPosition`] always points to a valid instruction position.
+    fn index_mut(&mut self, position: InstructionPosition) -> &mut Self::Output {
+        &mut self.instructions[position.index()]
+    }
+}
+
 // endregion: program
