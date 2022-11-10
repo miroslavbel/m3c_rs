@@ -351,29 +351,29 @@ impl InstructionPosition {
         }
     }
     /// Returns the "flat index".
-    pub fn index(self) -> usize {
+    pub fn index(&self) -> usize {
         self.page as usize * Program::ROWS_PER_PAGE * Program::INSTRUCTIONS_PER_ROW
             + self.row as usize * Program::INSTRUCTIONS_PER_ROW
             + self.column as usize
     }
     /// Returns the index of the page.
-    pub fn page(self) -> u8 {
+    pub fn page(&self) -> u8 {
         self.page
     }
     /// Returns the index of the row on page.
-    pub fn row(self) -> u8 {
+    pub fn row(&self) -> u8 {
         self.row
     }
     /// Returns the index of the column in the row.
-    pub fn column(self) -> u8 {
+    pub fn column(&self) -> u8 {
         self.column
     }
     /// Moves this [`InstructionPosition`] to the next position.
     ///
     /// # Errors
-    /// If the this [`InstructionPosition`] already points to the last position in the program, an
+    /// If this [`InstructionPosition`] already points to the last position in the program, an
     /// [`InstructionPositionOverflowError`] will be returned and the operation will not be performed.
-    pub fn move_forward(mut self) -> Result<(), InstructionPositionOverflowError> {
+    pub fn move_forward(&mut self) -> Result<(), InstructionPositionOverflowError> {
         if self.column as usize == Program::INSTRUCTIONS_PER_ROW - 1 {
             self.move_to_next_row()
         } else {
@@ -381,20 +381,32 @@ impl InstructionPosition {
             Ok(())
         }
     }
-    fn move_to_next_row(mut self) -> Result<(), InstructionPositionOverflowError> {
-        // check if `self.row` is the last row on the page
+    /// Moves this [`InstructionPosition`] to the beginning of next row.
+    ///
+    /// # Errors
+    /// If this [`InstructionPosition`] already points to an instruction in the last row on
+    /// page, an [`InstructionPositionOverflowError`] will be returned and the operation will not
+    /// be performed.
+    pub fn move_to_next_row(&mut self) -> Result<(), InstructionPositionOverflowError> {
         if self.row as usize == Program::ROWS_PER_PAGE - 1 {
-            // check if `self.page` is the last page on program
-            if self.page as usize == Program::PAGES_PER_PROGRAM - 1 {
-                Err(InstructionPositionOverflowError {})
-            } else {
-                self.page += 1;
-                self.row = 0;
-                self.column = 0;
-                Ok(())
-            }
+            self.move_to_next_page()
         } else {
             self.row += 1;
+            self.column = 0;
+            Ok(())
+        }
+    }
+    /// Moves this [`InstructionPosition`] to the beginning of next page.
+    ///
+    /// # Errors
+    /// If this [`InstructionPosition`] already points to an instruction on the last page, an
+    /// [`InstructionPositionOverflowError`] will be returned and the operation will not be performed.
+    pub fn move_to_next_page(&mut self) -> Result<(), InstructionPositionOverflowError> {
+        if self.page as usize == Program::PAGES_PER_PROGRAM - 1 {
+            Err(InstructionPositionOverflowError {})
+        } else {
+            self.page += 1;
+            self.row = 0;
             self.column = 0;
             Ok(())
         }
@@ -486,3 +498,42 @@ impl IndexMut<InstructionPosition> for Program {
 }
 
 // endregion: program
+
+// region: test
+
+#[cfg(test)]
+mod tests {
+
+    #[cfg(test)]
+    mod instruction_position {
+
+        use super::super::InstructionPosition;
+
+        #[test]
+        fn move_forward_through_row() {
+            let mut instruction_position = InstructionPosition::new(1, 2, 15).unwrap();
+            instruction_position.move_forward().unwrap();
+            assert_eq!(1, instruction_position.page());
+            assert_eq!(3, instruction_position.row());
+            assert_eq!(0, instruction_position.column());
+        }
+
+        #[test]
+        fn move_forward_through_page() {
+            let mut instruction_position = InstructionPosition::new(1, 11, 15).unwrap();
+            instruction_position.move_forward().unwrap();
+            assert_eq!(2, instruction_position.page());
+            assert_eq!(0, instruction_position.row());
+            assert_eq!(0, instruction_position.column());
+        }
+
+        #[test]
+        #[should_panic]
+        fn move_forward_panic() {
+            let mut instruction_position = InstructionPosition::new(15, 11, 15).unwrap();
+            instruction_position.move_forward().unwrap();
+        }
+    }
+}
+
+// endregion: test
