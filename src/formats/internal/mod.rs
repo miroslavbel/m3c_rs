@@ -449,6 +449,10 @@ impl Program {
     /// Number of instruction per program.
     pub const INSTRUCTIONS_PER_PROGRAM: usize =
         Self::PAGES_PER_PROGRAM * Self::ROWS_PER_PAGE * Self::INSTRUCTIONS_PER_ROW;
+    /// Resets all instruction of this [`Program`] to [`InstructionId::Empty`].
+    pub fn reset(&mut self) {
+        self.instructions.fill(Instruction::default());
+    }
 }
 
 impl Default for Program {
