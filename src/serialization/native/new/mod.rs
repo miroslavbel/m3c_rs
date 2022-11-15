@@ -5,7 +5,9 @@
 
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
-use crate::formats::internal::{InstructionPosition, Program};
+use crate::formats::internal::{
+    Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
+};
 
 // region: errors
 
@@ -51,9 +53,26 @@ enum CheckMagicErrors {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct UnknownInstruction {
+    index: usize,
+}
+
+impl UnknownInstruction {}
+
+impl fmt::Display for UnknownInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "found an unknown instruction at index {}", self.index)
+    }
+}
+
+impl Error for UnknownInstruction {}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DeserializeErrors {
     MagicNotFoundError(MagicNotFoundError),
     IllegalMagicError(IllegalMagicError),
+    UnknownInstruction(UnknownInstruction),
+    InstructionPositionOverflowError(InstructionPositionOverflowError),
 }
 
 impl From<CheckMagicErrors> for DeserializeErrors {
@@ -73,6 +92,7 @@ pub struct TextFormatDeserializer<'p, 'e> {
     enumeration: Enumerate<Chars<'e>>,
     position: InstructionPosition,
     program: &'p mut Program,
+    index: usize,
 }
 
 impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
@@ -82,13 +102,51 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             enumeration: s.chars().enumerate(),
             position: InstructionPosition::default(),
             program,
+            index: 0,
         }
     }
     pub fn deserialize(&mut self) -> Result<(), DeserializeErrors> {
         let magic = self.check_magic();
-        match magic {
-            Err(e) => Err(e.into()),
-            Ok(_) => todo!(),
+        if let Err(e) = magic {
+            Err(e.into())
+        } else {
+            self.program.reset();
+            loop {
+                let parsed = self.parse_next();
+                match parsed {
+                    Ok(None) => break Ok(()),
+                    Ok(Some(instruction)) => {
+                        self.program[self.position] = instruction;
+                        let result = self.position.move_forward();
+                        match result {
+                            Err(e) => {
+                                break Err(DeserializeErrors::InstructionPositionOverflowError(e))
+                            }
+                            Ok(_) => continue,
+                        }
+                    }
+                    Err(e) => break Err(DeserializeErrors::UnknownInstruction(e)),
+                }
+            }
+        }
+    }
+    fn parse_next(&mut self) -> Result<Option<Instruction>, UnknownInstruction> {
+        let first_char = self.enumeration.next();
+        match first_char {
+            None => Ok(None),
+            Some((index, first_char)) => {
+                self.index = index;
+                match first_char {
+                    '<' => {
+                        let res = self.parse_less_than_sign();
+                        match res {
+                            Ok(ins) => Ok(Some(ins)),
+                            Err(e) => Err(e),
+                        }
+                    }
+                    _ => todo!(),
+                }
+            }
         }
     }
     fn check_magic(&mut self) -> Result<(), CheckMagicErrors> {
@@ -100,6 +158,43 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 _ => Err(CheckMagicErrors::IllegalMagicError(IllegalMagicError {
                     illegal_magic: magic,
                 })),
+            },
+        }
+    }
+    fn get_next_char(&mut self) -> Result<char, UnknownInstruction> {
+        let res = self.enumeration.next();
+        match res {
+            None => Err(UnknownInstruction { index: self.index }),
+            Some((_, ch)) => Ok(ch),
+        }
+    }
+    fn parse_less_than_sign(&mut self) -> Result<Instruction, UnknownInstruction> {
+        let second_char = self.get_next_char();
+        match second_char {
+            Err(e) => Err(e),
+            Ok(second_char) => match second_char {
+                '|' => Ok(Instruction::new_simple(InstructionId::Return).unwrap()),
+                '-' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            '|' => Ok(Instruction::new_simple(InstructionId::Return1).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                '=' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            '|' => Ok(Instruction::new_simple(InstructionId::ReturnF).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                _ => Err(UnknownInstruction { index: self.index }),
             },
         }
     }
@@ -115,7 +210,7 @@ mod tests {
         use super::super::{
             DeserializeErrors, IllegalMagicError, MagicNotFoundError, TextFormatDeserializer,
         };
-        use crate::formats::internal::Program;
+        use crate::formats::internal::{Instruction, InstructionId, Program};
 
         #[test]
         fn deserialize_empty_string() {
@@ -139,6 +234,22 @@ mod tests {
                 DeserializeErrors::IllegalMagicError(IllegalMagicError { illegal_magic: '0' }) => {}
                 _ => panic!(),
             }
+        }
+
+        #[test]
+        fn deserialize_string_with_returns() {
+            // expected_program
+            let s = "$<|<-|<=|";
+            let mut expected_program = Program::default();
+            expected_program[0] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[1] = Instruction::new_simple(InstructionId::Return1).unwrap();
+            expected_program[2] = Instruction::new_simple(InstructionId::ReturnF).unwrap();
+            // actual_program
+            let mut actual_program = Program::default();
+            let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
+            de.deserialize().unwrap();
+            // asserts
+            assert_eq!(expected_program, actual_program);
         }
     }
 }
