@@ -84,6 +84,18 @@ impl From<CheckMagicErrors> for DeserializeErrors {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Command {
+    GoToNextRow,
+    GoToNextPage,
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum InstructionOrCommand {
+    Command(Command),
+    Instruction(Instruction),
+}
+
 // endregion: errors
 
 /// A structure that deserializes New Text format into [Internal format](crate::formats::internal).
@@ -115,7 +127,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 let parsed = self.parse_next();
                 match parsed {
                     Ok(None) => break Ok(()),
-                    Ok(Some(instruction)) => {
+                    Ok(Some(InstructionOrCommand::Instruction(instruction))) => {
                         self.program[self.position] = instruction;
                         let result = self.position.move_forward();
                         match result {
@@ -125,29 +137,57 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             Ok(_) => continue,
                         }
                     }
+                    Ok(Some(InstructionOrCommand::Command(command))) => match command {
+                        Command::GoToNextRow => {
+                            let result = self.position.move_to_next_row();
+                            match result {
+                                Err(e) => {
+                                    break Err(DeserializeErrors::InstructionPositionOverflowError(
+                                        e,
+                                    ))
+                                }
+                                Ok(_) => continue,
+                            }
+                        }
+                        Command::GoToNextPage => {
+                            let result = self.position.move_to_next_page();
+                            match result {
+                                Err(e) => {
+                                    break Err(DeserializeErrors::InstructionPositionOverflowError(
+                                        e,
+                                    ))
+                                }
+                                Ok(_) => continue,
+                            }
+                        }
+                    },
                     Err(e) => break Err(DeserializeErrors::UnknownInstruction(e)),
                 }
             }
         }
     }
-    fn parse_next(&mut self) -> Result<Option<Instruction>, UnknownInstruction> {
+    fn parse_next(&mut self) -> Result<Option<InstructionOrCommand>, UnknownInstruction> {
         let first_char = self.enumeration.next();
         match first_char {
             None => Ok(None),
             Some((index, first_char)) => {
                 self.index = index;
                 match first_char {
+                    // Commands
+                    '\n' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextRow))),
+                    '~' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextPage))),
+                    // Instructions
                     '<' => {
                         let res = self.parse_less_than_sign();
                         match res {
-                            Ok(ins) => Ok(Some(ins)),
+                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
                             Err(e) => Err(e),
                         }
                     }
                     '^' => {
                         let res = self.parse_circumflex_accent();
                         match res {
-                            Ok(ins) => Ok(Some(ins)),
+                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
                             Err(e) => Err(e),
                         }
                     }
@@ -231,7 +271,7 @@ mod tests {
         use super::super::{
             DeserializeErrors, IllegalMagicError, MagicNotFoundError, TextFormatDeserializer,
         };
-        use crate::formats::internal::{Instruction, InstructionId, Program};
+        use crate::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
         #[test]
         fn deserialize_empty_string() {
@@ -271,6 +311,25 @@ mod tests {
             expected_program[6] = Instruction::new_simple(InstructionId::MoveS).unwrap();
             expected_program[7] = Instruction::new_simple(InstructionId::MoveA).unwrap();
             expected_program[8] = Instruction::new_simple(InstructionId::Return).unwrap();
+            // actual_program
+            let mut actual_program = Program::default();
+            let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
+            de.deserialize().unwrap();
+            // asserts
+            assert_eq!(expected_program, actual_program);
+        }
+
+        #[test]
+        fn deserialize_commands() {
+            let s = "$^W\n^A~^D";
+            // expected_program
+            let mut expected_program = Program::default();
+            expected_program[InstructionPosition::new(0, 0, 0).unwrap()] =
+                Instruction::new_simple(InstructionId::MoveW).unwrap();
+            expected_program[InstructionPosition::new(0, 1, 0).unwrap()] =
+                Instruction::new_simple(InstructionId::MoveA).unwrap();
+            expected_program[InstructionPosition::new(1, 0, 0).unwrap()] =
+                Instruction::new_simple(InstructionId::MoveD).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
