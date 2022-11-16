@@ -144,6 +144,13 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             Err(e) => Err(e),
                         }
                     }
+                    '^' => {
+                        let res = self.parse_circumflex_accent();
+                        match res {
+                            Ok(ins) => Ok(Some(ins)),
+                            Err(e) => Err(e),
+                        }
+                    }
                     _ => todo!(),
                 }
             }
@@ -198,6 +205,20 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             },
         }
     }
+    fn parse_circumflex_accent(&mut self) -> Result<Instruction, UnknownInstruction> {
+        let second_char = self.get_next_char();
+        match second_char {
+            Err(e) => Err(e),
+            Ok(second_char) => match second_char {
+                'F' => Ok(Instruction::new_simple(InstructionId::MoveF).unwrap()),
+                'W' => Ok(Instruction::new_simple(InstructionId::MoveW).unwrap()),
+                'D' => Ok(Instruction::new_simple(InstructionId::MoveD).unwrap()),
+                'S' => Ok(Instruction::new_simple(InstructionId::MoveS).unwrap()),
+                'A' => Ok(Instruction::new_simple(InstructionId::MoveA).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+        }
+    }
 }
 
 // region: tests
@@ -237,13 +258,19 @@ mod tests {
         }
 
         #[test]
-        fn deserialize_string_with_returns() {
+        fn deserialize_string_with_returns_and_moves() {
+            let s = "$<|<-|<=|^F^W^D^S^A<|";
             // expected_program
-            let s = "$<|<-|<=|";
             let mut expected_program = Program::default();
             expected_program[0] = Instruction::new_simple(InstructionId::Return).unwrap();
             expected_program[1] = Instruction::new_simple(InstructionId::Return1).unwrap();
             expected_program[2] = Instruction::new_simple(InstructionId::ReturnF).unwrap();
+            expected_program[3] = Instruction::new_simple(InstructionId::MoveF).unwrap();
+            expected_program[4] = Instruction::new_simple(InstructionId::MoveW).unwrap();
+            expected_program[5] = Instruction::new_simple(InstructionId::MoveD).unwrap();
+            expected_program[6] = Instruction::new_simple(InstructionId::MoveS).unwrap();
+            expected_program[7] = Instruction::new_simple(InstructionId::MoveA).unwrap();
+            expected_program[8] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
