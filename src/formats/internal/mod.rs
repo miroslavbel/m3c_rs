@@ -298,6 +298,24 @@ impl Instruction {
             _ => Err(UnsupportedInstructionId {}),
         }
     }
+    /// Constructs a new instruction of the [`Label`](InstructionKind::Label) kind with the given
+    /// `instruction_id`.
+    ///
+    /// # Errors
+    /// If the given `instruction_id` is not appropriate to the [`Label`](InstructionKind::Label)
+    /// kind an [`UnsupportedInstructionId`] will be returned.
+    pub fn new_label(
+        instruction_id: InstructionId,
+        label: LabelIdentifierLiteral,
+    ) -> Result<Self, UnsupportedInstructionId> {
+        match instruction_id.kind() {
+            InstructionKind::Label => Ok(Instruction {
+                id: instruction_id,
+                data: InstructionData::Label(label),
+            }),
+            _ => Err(UnsupportedInstructionId {}),
+        }
+    }
     /// Returns the [instruction id](InstructionId).
     pub fn id(&self) -> InstructionId {
         self.id
