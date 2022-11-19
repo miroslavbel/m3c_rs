@@ -5,6 +5,7 @@
 
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
+use crate::formats::internal::literals::LabelIdentifierLiteral;
 use crate::formats::internal::{
     Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
 };
@@ -68,10 +69,32 @@ impl fmt::Display for UnknownInstruction {
 impl Error for UnknownInstruction {}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct LiteralIsTooLong {
+    literal_index: usize,
+}
+
+impl LiteralIsTooLong {}
+
+impl fmt::Display for LiteralIsTooLong {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "found too long literal at index {}", self.literal_index)
+    }
+}
+
+impl Error for LiteralIsTooLong {}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum ParseNextErrors {
+    UnknownInstruction(UnknownInstruction),
+    LiteralIsTooLong(LiteralIsTooLong),
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DeserializeErrors {
     MagicNotFoundError(MagicNotFoundError),
     IllegalMagicError(IllegalMagicError),
     UnknownInstruction(UnknownInstruction),
+    LiteralIsTooLong(LiteralIsTooLong),
     InstructionPositionOverflowError(InstructionPositionOverflowError),
 }
 
@@ -80,6 +103,15 @@ impl From<CheckMagicErrors> for DeserializeErrors {
         match error {
             CheckMagicErrors::MagicNotFoundError(e) => DeserializeErrors::MagicNotFoundError(e),
             CheckMagicErrors::IllegalMagicError(e) => DeserializeErrors::IllegalMagicError(e),
+        }
+    }
+}
+
+impl From<ParseNextErrors> for DeserializeErrors {
+    fn from(error: ParseNextErrors) -> Self {
+        match error {
+            ParseNextErrors::UnknownInstruction(e) => DeserializeErrors::UnknownInstruction(e),
+            ParseNextErrors::LiteralIsTooLong(e) => DeserializeErrors::LiteralIsTooLong(e),
         }
     }
 }
@@ -161,12 +193,12 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             }
                         }
                     },
-                    Err(e) => break Err(DeserializeErrors::UnknownInstruction(e)),
+                    Err(e) => break Err(e.into()),
                 }
             }
         }
     }
-    fn parse_next(&mut self) -> Result<Option<InstructionOrCommand>, UnknownInstruction> {
+    fn parse_next(&mut self) -> Result<Option<InstructionOrCommand>, ParseNextErrors> {
         let first_char = self.enumeration.next();
         match first_char {
             None => Ok(None),
@@ -181,14 +213,37 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         let res = self.parse_less_than_sign();
                         match res {
                             Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(e),
+                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
                         }
                     }
                     '^' => {
                         let res = self.parse_circumflex_accent();
                         match res {
                             Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(e),
+                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
+                        }
+                    }
+                    '|' => {
+                        let literal =
+                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                        match literal {
+                            (literal, Some((next_index, ':'))) => {
+                                if next_index > self.index + 1 + 3 {
+                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                        literal_index: self.index + 1,
+                                    }))
+                                } else {
+                                    Ok(Some(InstructionOrCommand::Instruction(
+                                        Instruction::new_label(InstructionId::Label, literal)
+                                            .unwrap(),
+                                    )))
+                                }
+                            }
+                            (_, Some((_, _)) | None) => {
+                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                }))
+                            }
                         }
                     }
                     _ => todo!(),
@@ -271,6 +326,8 @@ mod tests {
         use super::super::{
             DeserializeErrors, IllegalMagicError, MagicNotFoundError, TextFormatDeserializer,
         };
+
+        use crate::formats::internal::literals::LabelIdentifierLiteral;
         use crate::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
         #[test]
@@ -330,6 +387,34 @@ mod tests {
                 Instruction::new_simple(InstructionId::MoveA).unwrap();
             expected_program[InstructionPosition::new(1, 0, 0).unwrap()] =
                 Instruction::new_simple(InstructionId::MoveD).unwrap();
+            // actual_program
+            let mut actual_program = Program::default();
+            let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
+            de.deserialize().unwrap();
+            // asserts
+            assert_eq!(expected_program, actual_program);
+        }
+
+        #[test]
+        fn deserialize_literals() {
+            let s = "$|:|hi:|012:";
+            // expected_program
+            let mut expected_program = Program::default();
+            expected_program[0] = Instruction::new_label(
+                InstructionId::Label,
+                LabelIdentifierLiteral::new_from_array([0; 4]).unwrap(),
+            )
+            .unwrap();
+            expected_program[1] = Instruction::new_label(
+                InstructionId::Label,
+                LabelIdentifierLiteral::new_from_array([b'h', b'i', 0, 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[2] = Instruction::new_label(
+                InstructionId::Label,
+                LabelIdentifierLiteral::new_from_array([b'0', b'1', b'2', 0]).unwrap(),
+            )
+            .unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
