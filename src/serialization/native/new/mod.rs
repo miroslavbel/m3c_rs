@@ -128,6 +128,12 @@ enum InstructionOrCommand {
     Instruction(Instruction),
 }
 
+impl From<Instruction> for Result<Option<InstructionOrCommand>, ParseNextErrors> {
+    fn from(instruction: Instruction) -> Self {
+        Ok(Some(InstructionOrCommand::Instruction(instruction)))
+    }
+}
+
 // endregion: errors
 
 /// A structure that deserializes New Text format into [Internal format](crate::formats::internal).
@@ -209,6 +215,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '\n' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextRow))),
                     '~' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextPage))),
                     // Instructions
+                    ',' => Instruction::new_simple(InstructionId::Back).unwrap().into(),
                     '<' => {
                         let res = self.parse_less_than_sign();
                         match res {
@@ -223,6 +230,34 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
                         }
                     }
+                    'a' => Instruction::new_simple(InstructionId::LookA)
+                        .unwrap()
+                        .into(),
+                    'b' => Instruction::new_simple(InstructionId::ActionBuild)
+                        .unwrap()
+                        .into(),
+                    'd' => Instruction::new_simple(InstructionId::LookD)
+                        .unwrap()
+                        .into(),
+                    'g' => Instruction::new_simple(InstructionId::ActionGeo)
+                        .unwrap()
+                        .into(),
+                    'h' => Instruction::new_simple(InstructionId::ActionHeal)
+                        .unwrap()
+                        .into(),
+                    'q' => Instruction::new_simple(InstructionId::ActionQuadro)
+                        .unwrap()
+                        .into(),
+                    'r' => Instruction::new_simple(InstructionId::ActionRoad)
+                        .unwrap()
+                        .into(),
+                    's' => Instruction::new_simple(InstructionId::LookS)
+                        .unwrap()
+                        .into(),
+                    'w' => Instruction::new_simple(InstructionId::LookW)
+                        .unwrap()
+                        .into(),
+                    'z' => Instruction::new_simple(InstructionId::Digg).unwrap().into(),
                     '|' => {
                         let literal =
                             LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
@@ -355,8 +390,8 @@ mod tests {
         }
 
         #[test]
-        fn deserialize_string_with_returns_and_moves() {
-            let s = "$<|<-|<=|^F^W^D^S^A<|";
+        fn deserialize_simple_instructions() {
+            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,<|";
             // expected_program
             let mut expected_program = Program::default();
             expected_program[0] = Instruction::new_simple(InstructionId::Return).unwrap();
@@ -367,7 +402,18 @@ mod tests {
             expected_program[5] = Instruction::new_simple(InstructionId::MoveD).unwrap();
             expected_program[6] = Instruction::new_simple(InstructionId::MoveS).unwrap();
             expected_program[7] = Instruction::new_simple(InstructionId::MoveA).unwrap();
-            expected_program[8] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[8] = Instruction::new_simple(InstructionId::LookA).unwrap();
+            expected_program[9] = Instruction::new_simple(InstructionId::LookD).unwrap();
+            expected_program[10] = Instruction::new_simple(InstructionId::LookS).unwrap();
+            expected_program[11] = Instruction::new_simple(InstructionId::LookW).unwrap();
+            expected_program[12] = Instruction::new_simple(InstructionId::Digg).unwrap();
+            expected_program[13] = Instruction::new_simple(InstructionId::ActionGeo).unwrap();
+            expected_program[14] = Instruction::new_simple(InstructionId::ActionHeal).unwrap();
+            expected_program[15] = Instruction::new_simple(InstructionId::ActionRoad).unwrap();
+            expected_program[16] = Instruction::new_simple(InstructionId::ActionBuild).unwrap();
+            expected_program[17] = Instruction::new_simple(InstructionId::ActionQuadro).unwrap();
+            expected_program[18] = Instruction::new_simple(InstructionId::Back).unwrap();
+            expected_program[19] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
