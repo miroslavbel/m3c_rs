@@ -223,6 +223,13 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
                         }
                     }
+                    '[' => {
+                        let res = self.parse_left_square_bracket();
+                        match res {
+                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
+                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
+                        }
+                    }
                     '^' => {
                         let res = self.parse_circumflex_accent();
                         match res {
@@ -335,6 +342,191 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             },
         }
     }
+    fn parse_left_square_bracket(&mut self) -> Result<Instruction, UnknownInstruction> {
+        let second_char = self.get_next_char();
+        match second_char {
+            Err(e) => Err(e),
+            Ok(second_char) => match second_char {
+                'A' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            'S' => {
+                                let fourth_char = self.get_next_char();
+                                match fourth_char {
+                                    Err(e) => Err(e),
+                                    Ok(fourth_char) => match fourth_char {
+                                        ']' => {
+                                            Ok(Instruction::new_simple(InstructionId::CellAs)
+                                                .unwrap())
+                                        }
+                                        _ => Err(UnknownInstruction { index: self.index }),
+                                    },
+                                }
+                            }
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellA).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'D' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            'W' => {
+                                let fourth_char = self.get_next_char();
+                                match fourth_char {
+                                    Err(e) => Err(e),
+                                    Ok(fourth_char) => match fourth_char {
+                                        ']' => {
+                                            Ok(Instruction::new_simple(InstructionId::CellDw)
+                                                .unwrap())
+                                        }
+                                        _ => Err(UnknownInstruction { index: self.index }),
+                                    },
+                                }
+                            }
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellD).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'F' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellF).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'S' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            'D' => {
+                                let fourth_char = self.get_next_char();
+                                match fourth_char {
+                                    Err(e) => Err(e),
+                                    Ok(fourth_char) => match fourth_char {
+                                        ']' => {
+                                            Ok(Instruction::new_simple(InstructionId::CellSd)
+                                                .unwrap())
+                                        }
+                                        _ => Err(UnknownInstruction { index: self.index }),
+                                    },
+                                }
+                            }
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellS).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'W' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            'A' => {
+                                let fourth_char = self.get_next_char();
+                                match fourth_char {
+                                    Err(e) => Err(e),
+                                    Ok(fourth_char) => match fourth_char {
+                                        ']' => {
+                                            Ok(Instruction::new_simple(InstructionId::CellWa)
+                                                .unwrap())
+                                        }
+                                        _ => Err(UnknownInstruction { index: self.index }),
+                                    },
+                                }
+                            }
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellW).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'a' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellAa).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'd' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellDd).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'f' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellFf).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'l' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => {
+                                Ok(Instruction::new_simple(InstructionId::CellLeftHand).unwrap())
+                            }
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'r' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => {
+                                Ok(Instruction::new_simple(InstructionId::CellRightHand).unwrap())
+                            }
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                's' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellSs).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                'w' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e),
+                        Ok(third_char) => match third_char {
+                            ']' => Ok(Instruction::new_simple(InstructionId::CellWw).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                    }
+                }
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+        }
+    }
     fn parse_circumflex_accent(&mut self) -> Result<Instruction, UnknownInstruction> {
         let second_char = self.get_next_char();
         match second_char {
@@ -391,21 +583,25 @@ mod tests {
 
         #[test]
         fn deserialize_simple_instructions() {
-            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,<|";
+            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]<|";
             // expected_program
             let mut expected_program = Program::default();
+            //     returns
             expected_program[0] = Instruction::new_simple(InstructionId::Return).unwrap();
             expected_program[1] = Instruction::new_simple(InstructionId::Return1).unwrap();
             expected_program[2] = Instruction::new_simple(InstructionId::ReturnF).unwrap();
+            //     moves
             expected_program[3] = Instruction::new_simple(InstructionId::MoveF).unwrap();
             expected_program[4] = Instruction::new_simple(InstructionId::MoveW).unwrap();
             expected_program[5] = Instruction::new_simple(InstructionId::MoveD).unwrap();
             expected_program[6] = Instruction::new_simple(InstructionId::MoveS).unwrap();
             expected_program[7] = Instruction::new_simple(InstructionId::MoveA).unwrap();
+            //     looks
             expected_program[8] = Instruction::new_simple(InstructionId::LookA).unwrap();
             expected_program[9] = Instruction::new_simple(InstructionId::LookD).unwrap();
             expected_program[10] = Instruction::new_simple(InstructionId::LookS).unwrap();
             expected_program[11] = Instruction::new_simple(InstructionId::LookW).unwrap();
+            //     one char staff
             expected_program[12] = Instruction::new_simple(InstructionId::Digg).unwrap();
             expected_program[13] = Instruction::new_simple(InstructionId::ActionGeo).unwrap();
             expected_program[14] = Instruction::new_simple(InstructionId::ActionHeal).unwrap();
@@ -413,7 +609,25 @@ mod tests {
             expected_program[16] = Instruction::new_simple(InstructionId::ActionBuild).unwrap();
             expected_program[17] = Instruction::new_simple(InstructionId::ActionQuadro).unwrap();
             expected_program[18] = Instruction::new_simple(InstructionId::Back).unwrap();
-            expected_program[19] = Instruction::new_simple(InstructionId::Return).unwrap();
+            //     cells
+            expected_program[19] = Instruction::new_simple(InstructionId::CellF).unwrap();
+            expected_program[20] = Instruction::new_simple(InstructionId::CellW).unwrap();
+            expected_program[21] = Instruction::new_simple(InstructionId::CellWa).unwrap();
+            expected_program[22] = Instruction::new_simple(InstructionId::CellD).unwrap();
+            expected_program[23] = Instruction::new_simple(InstructionId::CellDw).unwrap();
+            expected_program[24] = Instruction::new_simple(InstructionId::CellS).unwrap();
+            expected_program[25] = Instruction::new_simple(InstructionId::CellSd).unwrap();
+            expected_program[26] = Instruction::new_simple(InstructionId::CellA).unwrap();
+            expected_program[27] = Instruction::new_simple(InstructionId::CellAs).unwrap();
+            expected_program[28] = Instruction::new_simple(InstructionId::CellRightHand).unwrap();
+            expected_program[29] = Instruction::new_simple(InstructionId::CellLeftHand).unwrap();
+            expected_program[30] = Instruction::new_simple(InstructionId::CellFf).unwrap();
+            expected_program[31] = Instruction::new_simple(InstructionId::CellWw).unwrap();
+            expected_program[32] = Instruction::new_simple(InstructionId::CellDd).unwrap();
+            expected_program[33] = Instruction::new_simple(InstructionId::CellSs).unwrap();
+            expected_program[34] = Instruction::new_simple(InstructionId::CellAa).unwrap();
+            //     for tail check
+            expected_program[35] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
