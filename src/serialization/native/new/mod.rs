@@ -89,6 +89,12 @@ enum ParseNextErrors {
     LiteralIsTooLong(LiteralIsTooLong),
 }
 
+impl From<UnknownInstruction> for ParseNextErrors {
+    fn from(error: UnknownInstruction) -> Self {
+        ParseNextErrors::UnknownInstruction(error)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DeserializeErrors {
     MagicNotFoundError(MagicNotFoundError),
@@ -223,6 +229,13 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
                         }
                     }
+                    '=' => {
+                        let res = self.parse_equals_sign();
+                        match res {
+                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
+                            Err(e) => Err(e),
+                        }
+                    }
                     '[' => {
                         let res = self.parse_left_square_bracket();
                         match res {
@@ -339,6 +352,97 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     }
                 }
                 _ => Err(UnknownInstruction { index: self.index }),
+            },
+        }
+    }
+    fn parse_equals_sign(&mut self) -> Result<Instruction, ParseNextErrors> {
+        let second_char = self.get_next_char();
+        match second_char {
+            Err(e) => Err(e.into()),
+            Ok(second_char) => match second_char {
+                '>' => {
+                    let literal = LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                    match literal {
+                        (literal, Some((next_index, '>'))) => {
+                            if next_index > self.index + 2 + 3 {
+                                Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                    literal_index: self.index + 1,
+                                }))
+                            } else {
+                                Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
+                            }
+                        }
+                        (_, Some((_, _)) | None) => {
+                            Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                index: self.index,
+                            }))
+                        }
+                    }
+                }
+                'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
+                'B' => Ok(Instruction::new_simple(InstructionId::CccBlackRock).unwrap()),
+                'G' => Ok(Instruction::new_simple(InstructionId::CcGun).unwrap()),
+                'K' => Ok(Instruction::new_simple(InstructionId::CccRedRock).unwrap()),
+                'R' => Ok(Instruction::new_simple(InstructionId::CccRoad).unwrap()),
+                'a' => Ok(Instruction::new_simple(InstructionId::CcAlive).unwrap()),
+                'b' => Ok(Instruction::new_simple(InstructionId::CcBolder).unwrap()),
+                'c' => Ok(Instruction::new_simple(InstructionId::CcCrystall).unwrap()),
+                'd' => Ok(Instruction::new_simple(InstructionId::CcDead).unwrap()),
+                'e' => Ok(Instruction::new_simple(InstructionId::CcEmpty).unwrap()),
+                'f' => Ok(Instruction::new_simple(InstructionId::CcGravity).unwrap()),
+                'g' => Ok(Instruction::new_simple(InstructionId::CccGreenBlock).unwrap()),
+                'h' => {
+                    let third_char = self.get_next_char();
+                    match third_char {
+                        Err(e) => Err(e.into()),
+                        Ok(third_char) => match third_char {
+                            'p' => {
+                                let fourth_char = self.get_next_char();
+                                match fourth_char {
+                                    Err(e) => Err(e.into()),
+                                    Ok(fourth_char) => match fourth_char {
+                                        '-' => {
+                                            Ok(Instruction::new_simple(InstructionId::CbHp)
+                                                .unwrap())
+                                        }
+                                        '5' => {
+                                            let fifth_char = self.get_next_char();
+                                            match fifth_char {
+                                                Err(e) => Err(e.into()),
+                                                Ok(fifth_char) => match fifth_char {
+                                                    '0' => Ok(Instruction::new_simple(
+                                                        InstructionId::CbHp50,
+                                                    )
+                                                    .unwrap()),
+                                                    _ => Err(ParseNextErrors::UnknownInstruction(
+                                                        UnknownInstruction { index: self.index },
+                                                    )),
+                                                },
+                                            }
+                                        }
+                                        _ => Err(ParseNextErrors::UnknownInstruction(
+                                            UnknownInstruction { index: self.index },
+                                        )),
+                                    },
+                                }
+                            }
+                            _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                index: self.index,
+                            })),
+                        },
+                    }
+                }
+                'k' => Ok(Instruction::new_simple(InstructionId::CcRock).unwrap()),
+                'n' => Ok(Instruction::new_simple(InstructionId::CcNotEmpty).unwrap()),
+                'o' => Ok(Instruction::new_simple(InstructionId::CccOpor).unwrap()),
+                'q' => Ok(Instruction::new_simple(InstructionId::CccQuadro).unwrap()),
+                'r' => Ok(Instruction::new_simple(InstructionId::CccRedBlock).unwrap()),
+                's' => Ok(Instruction::new_simple(InstructionId::CcSand).unwrap()),
+                'x' => Ok(Instruction::new_simple(InstructionId::CccBox).unwrap()),
+                'y' => Ok(Instruction::new_simple(InstructionId::CccYellowBlock).unwrap()),
+                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                    index: self.index,
+                })),
             },
         }
     }
@@ -583,7 +687,7 @@ mod tests {
 
         #[test]
         fn deserialize_simple_instructions() {
-            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]<|";
+            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]=G=n=e=f=c=a=b=s=k=d=A=B=K=g=y=r=o=q=x=R=hp50=hp-<|";
             // expected_program
             let mut expected_program = Program::default();
             //     returns
@@ -626,8 +730,33 @@ mod tests {
             expected_program[32] = Instruction::new_simple(InstructionId::CellDd).unwrap();
             expected_program[33] = Instruction::new_simple(InstructionId::CellSs).unwrap();
             expected_program[34] = Instruction::new_simple(InstructionId::CellAa).unwrap();
+            //     cc
+            expected_program[35] = Instruction::new_simple(InstructionId::CcGun).unwrap();
+            expected_program[36] = Instruction::new_simple(InstructionId::CcNotEmpty).unwrap();
+            expected_program[37] = Instruction::new_simple(InstructionId::CcEmpty).unwrap();
+            expected_program[38] = Instruction::new_simple(InstructionId::CcGravity).unwrap();
+            expected_program[39] = Instruction::new_simple(InstructionId::CcCrystall).unwrap();
+            expected_program[40] = Instruction::new_simple(InstructionId::CcAlive).unwrap();
+            expected_program[41] = Instruction::new_simple(InstructionId::CcBolder).unwrap();
+            expected_program[42] = Instruction::new_simple(InstructionId::CcSand).unwrap();
+            expected_program[43] = Instruction::new_simple(InstructionId::CcRock).unwrap();
+            expected_program[44] = Instruction::new_simple(InstructionId::CcDead).unwrap();
+            expected_program[45] = Instruction::new_simple(InstructionId::CcAcid).unwrap();
+            //     ccc
+            expected_program[46] = Instruction::new_simple(InstructionId::CccBlackRock).unwrap();
+            expected_program[47] = Instruction::new_simple(InstructionId::CccRedRock).unwrap();
+            expected_program[48] = Instruction::new_simple(InstructionId::CccGreenBlock).unwrap();
+            expected_program[49] = Instruction::new_simple(InstructionId::CccYellowBlock).unwrap();
+            expected_program[50] = Instruction::new_simple(InstructionId::CccRedBlock).unwrap();
+            expected_program[51] = Instruction::new_simple(InstructionId::CccOpor).unwrap();
+            expected_program[52] = Instruction::new_simple(InstructionId::CccQuadro).unwrap();
+            expected_program[53] = Instruction::new_simple(InstructionId::CccBox).unwrap();
+            expected_program[54] = Instruction::new_simple(InstructionId::CccRoad).unwrap();
+            //     cb_hp
+            expected_program[55] = Instruction::new_simple(InstructionId::CbHp50).unwrap();
+            expected_program[56] = Instruction::new_simple(InstructionId::CbHp).unwrap();
             //     for tail check
-            expected_program[35] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[57] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
@@ -657,7 +786,7 @@ mod tests {
 
         #[test]
         fn deserialize_literals() {
-            let s = "$|:|hi:|012:";
+            let s = "$|:|hi:|012:=>sbf>";
             // expected_program
             let mut expected_program = Program::default();
             expected_program[0] = Instruction::new_label(
@@ -673,6 +802,11 @@ mod tests {
             expected_program[2] = Instruction::new_label(
                 InstructionId::Label,
                 LabelIdentifierLiteral::new_from_array([b'0', b'1', b'2', 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[3] = Instruction::new_label(
+                InstructionId::GoSubF,
+                LabelIdentifierLiteral::new_from_array([b's', b'b', b'f', 0]).unwrap(),
             )
             .unwrap();
             // actual_program
