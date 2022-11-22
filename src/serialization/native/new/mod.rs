@@ -221,7 +221,173 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '\n' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextRow))),
                     '~' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextPage))),
                     // Instructions
+                    '!' => {
+                        let second_char = self.get_next_char();
+                        match second_char {
+                            Err(e) => Err(e.into()),
+                            Ok(second_char) => match second_char {
+                                '?' => {
+                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
+                                        &mut self.enumeration,
+                                    );
+                                    match literal {
+                                        (literal, Some((next_index, '<'))) => {
+                                            if next_index > self.index + 2 + 3 {
+                                                Err(ParseNextErrors::LiteralIsTooLong(
+                                                    LiteralIsTooLong {
+                                                        literal_index: self.index + 2,
+                                                    },
+                                                ))
+                                            } else {
+                                                Ok(Some(InstructionOrCommand::Instruction(
+                                                    Instruction::new_label(
+                                                        InstructionId::IfGoTo,
+                                                        literal,
+                                                    )
+                                                    .unwrap(),
+                                                )))
+                                            }
+                                        }
+                                        (_, Some((_, _)) | None) => {
+                                            Err(ParseNextErrors::UnknownInstruction(
+                                                UnknownInstruction { index: self.index },
+                                            ))
+                                        }
+                                    }
+                                }
+                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                })),
+                            },
+                        }
+                    }
+                    '#' => {
+                        let second_char = self.get_next_char();
+                        match second_char {
+                            Err(e) => Err(e.into()),
+                            Ok(second_char) => match second_char {
+                                'E' => Ok(Some(InstructionOrCommand::Instruction(
+                                    Instruction::new_simple(InstructionId::End).unwrap(),
+                                ))),
+                                'R' => {
+                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
+                                        &mut self.enumeration,
+                                    );
+                                    match literal {
+                                        (literal, Some((next_index, '<'))) => {
+                                            if next_index > self.index + 2 + 3 {
+                                                Err(ParseNextErrors::LiteralIsTooLong(
+                                                    LiteralIsTooLong {
+                                                        literal_index: self.index + 2,
+                                                    },
+                                                ))
+                                            } else {
+                                                Ok(Some(InstructionOrCommand::Instruction(
+                                                    Instruction::new_label(
+                                                        InstructionId::OnResp,
+                                                        literal,
+                                                    )
+                                                    .unwrap(),
+                                                )))
+                                            }
+                                        }
+                                        (_, Some((_, _)) | None) => {
+                                            Err(ParseNextErrors::UnknownInstruction(
+                                                UnknownInstruction { index: self.index },
+                                            ))
+                                        }
+                                    }
+                                }
+                                'S' => Ok(Some(InstructionOrCommand::Instruction(
+                                    Instruction::new_simple(InstructionId::Start).unwrap(),
+                                ))),
+                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                })),
+                            },
+                        }
+                    }
                     ',' => Instruction::new_simple(InstructionId::Back).unwrap().into(),
+                    '-' => {
+                        let second_char = self.get_next_char();
+                        match second_char {
+                            Err(e) => Err(e.into()),
+                            Ok(second_char) => match second_char {
+                                '>' => {
+                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
+                                        &mut self.enumeration,
+                                    );
+                                    match literal {
+                                        (literal, Some((next_index, '>'))) => {
+                                            if next_index > self.index + 2 + 3 {
+                                                Err(ParseNextErrors::LiteralIsTooLong(
+                                                    LiteralIsTooLong {
+                                                        literal_index: self.index + 2,
+                                                    },
+                                                ))
+                                            } else {
+                                                Ok(Some(InstructionOrCommand::Instruction(
+                                                    Instruction::new_label(
+                                                        InstructionId::GoSub1,
+                                                        literal,
+                                                    )
+                                                    .unwrap(),
+                                                )))
+                                            }
+                                        }
+                                        (_, Some((_, _)) | None) => {
+                                            Err(ParseNextErrors::UnknownInstruction(
+                                                UnknownInstruction { index: self.index },
+                                            ))
+                                        }
+                                    }
+                                }
+                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                })),
+                            },
+                        }
+                    }
+                    ':' => {
+                        let second_char = self.get_next_char();
+                        match second_char {
+                            Err(e) => Err(e.into()),
+                            Ok(second_char) => match second_char {
+                                '>' => {
+                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
+                                        &mut self.enumeration,
+                                    );
+                                    match literal {
+                                        (literal, Some((next_index, '>'))) => {
+                                            if next_index > self.index + 2 + 3 {
+                                                Err(ParseNextErrors::LiteralIsTooLong(
+                                                    LiteralIsTooLong {
+                                                        literal_index: self.index + 2,
+                                                    },
+                                                ))
+                                            } else {
+                                                Ok(Some(InstructionOrCommand::Instruction(
+                                                    Instruction::new_label(
+                                                        InstructionId::GoSub,
+                                                        literal,
+                                                    )
+                                                    .unwrap(),
+                                                )))
+                                            }
+                                        }
+                                        (_, Some((_, _)) | None) => {
+                                            Err(ParseNextErrors::UnknownInstruction(
+                                                UnknownInstruction { index: self.index },
+                                            ))
+                                        }
+                                    }
+                                }
+                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                })),
+                            },
+                        }
+                    }
                     '<' => {
                         let res = self.parse_less_than_sign();
                         match res {
@@ -234,6 +400,52 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         match res {
                             Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
                             Err(e) => Err(e),
+                        }
+                    }
+                    '>' => {
+                        let literal =
+                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                        match literal {
+                            (literal, Some((next_index, '|'))) => {
+                                if next_index > self.index + 1 + 3 {
+                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                        literal_index: self.index + 1,
+                                    }))
+                                } else {
+                                    Ok(Some(InstructionOrCommand::Instruction(
+                                        Instruction::new_label(InstructionId::GoTo, literal)
+                                            .unwrap(),
+                                    )))
+                                }
+                            }
+                            (_, Some((_, _)) | None) => {
+                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                }))
+                            }
+                        }
+                    }
+                    '?' => {
+                        let literal =
+                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                        match literal {
+                            (literal, Some((next_index, '<'))) => {
+                                if next_index > self.index + 1 + 3 {
+                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                        literal_index: self.index + 1,
+                                    }))
+                                } else {
+                                    Ok(Some(InstructionOrCommand::Instruction(
+                                        Instruction::new_label(InstructionId::IfNotGoTo, literal)
+                                            .unwrap(),
+                                    )))
+                                }
+                            }
+                            (_, Some((_, _)) | None) => {
+                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
+                                    index: self.index,
+                                }))
+                            }
                         }
                     }
                     '[' => {
@@ -687,7 +899,7 @@ mod tests {
 
         #[test]
         fn deserialize_simple_instructions() {
-            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]=G=n=e=f=c=a=b=s=k=d=A=B=K=g=y=r=o=q=x=R=hp50=hp-<|";
+            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]=G=n=e=f=c=a=b=s=k=d=A=B=K=g=y=r=o=q=x=R=hp50=hp-#S#E<|";
             // expected_program
             let mut expected_program = Program::default();
             //     returns
@@ -755,8 +967,11 @@ mod tests {
             //     cb_hp
             expected_program[55] = Instruction::new_simple(InstructionId::CbHp50).unwrap();
             expected_program[56] = Instruction::new_simple(InstructionId::CbHp).unwrap();
+            //     start & end
+            expected_program[57] = Instruction::new_simple(InstructionId::Start).unwrap();
+            expected_program[58] = Instruction::new_simple(InstructionId::End).unwrap();
             //     for tail check
-            expected_program[57] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[59] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
@@ -786,9 +1001,11 @@ mod tests {
 
         #[test]
         fn deserialize_literals() {
-            let s = "$|:|hi:|012:=>sbf>";
+            let s = "$|:|hi:|012:>abc|:>zxc>->s12>=>sbf>!?if<?ifn<#Rrsp<";
             // expected_program
             let mut expected_program = Program::default();
+            //     labels
+            //         label
             expected_program[0] = Instruction::new_label(
                 InstructionId::Label,
                 LabelIdentifierLiteral::new_from_array([0; 4]).unwrap(),
@@ -804,9 +1021,42 @@ mod tests {
                 LabelIdentifierLiteral::new_from_array([b'0', b'1', b'2', 0]).unwrap(),
             )
             .unwrap();
+            //         go
             expected_program[3] = Instruction::new_label(
+                InstructionId::GoTo,
+                LabelIdentifierLiteral::new_from_array([b'a', b'b', b'c', 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[4] = Instruction::new_label(
+                InstructionId::GoSub,
+                LabelIdentifierLiteral::new_from_array([b'z', b'x', b'c', 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[5] = Instruction::new_label(
+                InstructionId::GoSub1,
+                LabelIdentifierLiteral::new_from_array([b's', b'1', b'2', 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[6] = Instruction::new_label(
                 InstructionId::GoSubF,
                 LabelIdentifierLiteral::new_from_array([b's', b'b', b'f', 0]).unwrap(),
+            )
+            .unwrap();
+            //         if[not]goto
+            expected_program[7] = Instruction::new_label(
+                InstructionId::IfGoTo,
+                LabelIdentifierLiteral::new_from_array([b'i', b'f', 0, 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[8] = Instruction::new_label(
+                InstructionId::IfNotGoTo,
+                LabelIdentifierLiteral::new_from_array([b'i', b'f', b'n', 0]).unwrap(),
+            )
+            .unwrap();
+            //         resp
+            expected_program[9] = Instruction::new_label(
+                InstructionId::OnResp,
+                LabelIdentifierLiteral::new_from_array([b'r', b's', b'p', 0]).unwrap(),
             )
             .unwrap();
             // actual_program
