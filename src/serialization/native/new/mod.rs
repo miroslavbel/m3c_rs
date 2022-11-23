@@ -53,6 +53,18 @@ enum CheckMagicErrors {
     IllegalMagicError(IllegalMagicError),
 }
 
+impl From<MagicNotFoundError> for CheckMagicErrors {
+    fn from(error: MagicNotFoundError) -> Self {
+        CheckMagicErrors::MagicNotFoundError(error)
+    }
+}
+
+impl From<IllegalMagicError> for CheckMagicErrors {
+    fn from(error: IllegalMagicError) -> Self {
+        CheckMagicErrors::IllegalMagicError(error)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct UnknownInstruction {
     index: usize,
@@ -95,6 +107,12 @@ impl From<UnknownInstruction> for ParseNextErrors {
     }
 }
 
+impl From<LiteralIsTooLong> for ParseNextErrors {
+    fn from(error: LiteralIsTooLong) -> Self {
+        ParseNextErrors::LiteralIsTooLong(error)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum DeserializeErrors {
     MagicNotFoundError(MagicNotFoundError),
@@ -122,6 +140,12 @@ impl From<ParseNextErrors> for DeserializeErrors {
     }
 }
 
+impl From<InstructionPositionOverflowError> for DeserializeErrors {
+    fn from(error: InstructionPositionOverflowError) -> Self {
+        DeserializeErrors::InstructionPositionOverflowError(error)
+    }
+}
+
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Command {
     GoToNextRow,
@@ -134,9 +158,15 @@ enum InstructionOrCommand {
     Instruction(Instruction),
 }
 
-impl From<Instruction> for Result<Option<InstructionOrCommand>, ParseNextErrors> {
+impl From<Command> for Option<InstructionOrCommand> {
+    fn from(command: Command) -> Self {
+        Some(InstructionOrCommand::Command(command))
+    }
+}
+
+impl From<Instruction> for Option<InstructionOrCommand> {
     fn from(instruction: Instruction) -> Self {
-        Ok(Some(InstructionOrCommand::Instruction(instruction)))
+        Some(InstructionOrCommand::Instruction(instruction))
     }
 }
 
@@ -162,51 +192,26 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
         }
     }
     pub fn deserialize(&mut self) -> Result<(), DeserializeErrors> {
-        let magic = self.check_magic();
-        if let Err(e) = magic {
-            Err(e.into())
-        } else {
-            self.program.reset();
-            loop {
-                let parsed = self.parse_next();
-                match parsed {
-                    Ok(None) => break Ok(()),
-                    Ok(Some(InstructionOrCommand::Instruction(instruction))) => {
-                        self.program[self.position] = instruction;
-                        let result = self.position.move_forward();
-                        match result {
-                            Err(e) => {
-                                break Err(DeserializeErrors::InstructionPositionOverflowError(e))
-                            }
-                            Ok(_) => continue,
-                        }
-                    }
-                    Ok(Some(InstructionOrCommand::Command(command))) => match command {
-                        Command::GoToNextRow => {
-                            let result = self.position.move_to_next_row();
-                            match result {
-                                Err(e) => {
-                                    break Err(DeserializeErrors::InstructionPositionOverflowError(
-                                        e,
-                                    ))
-                                }
-                                Ok(_) => continue,
-                            }
-                        }
-                        Command::GoToNextPage => {
-                            let result = self.position.move_to_next_page();
-                            match result {
-                                Err(e) => {
-                                    break Err(DeserializeErrors::InstructionPositionOverflowError(
-                                        e,
-                                    ))
-                                }
-                                Ok(_) => continue,
-                            }
-                        }
-                    },
-                    Err(e) => break Err(e.into()),
+        self.check_magic()?;
+        self.program.reset();
+        loop {
+            match self.parse_next()? {
+                None => break Ok(()),
+                Some(InstructionOrCommand::Instruction(instruction)) => {
+                    self.program[self.position] = instruction;
+                    self.position.move_forward()?;
+                    continue;
                 }
+                Some(InstructionOrCommand::Command(command)) => match command {
+                    Command::GoToNextRow => {
+                        self.position.move_to_next_row()?;
+                        continue;
+                    }
+                    Command::GoToNextPage => {
+                        self.position.move_to_next_page()?;
+                        continue;
+                    }
+                },
             }
         }
     }
@@ -218,210 +223,130 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 self.index = index;
                 match first_char {
                     // Commands
-                    '\n' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextRow))),
-                    '~' => Ok(Some(InstructionOrCommand::Command(Command::GoToNextPage))),
+                    '\n' => Ok(Command::GoToNextRow.into()),
+                    '~' => Ok(Command::GoToNextPage.into()),
                     // Instructions
-                    '!' => {
-                        let second_char = self.get_next_char();
-                        match second_char {
-                            Err(e) => Err(e.into()),
-                            Ok(second_char) => match second_char {
-                                '?' => {
-                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
-                                        &mut self.enumeration,
-                                    );
-                                    match literal {
-                                        (literal, Some((next_index, '<'))) => {
-                                            if next_index > self.index + 2 + 3 {
-                                                Err(ParseNextErrors::LiteralIsTooLong(
-                                                    LiteralIsTooLong {
-                                                        literal_index: self.index + 2,
-                                                    },
-                                                ))
-                                            } else {
-                                                Ok(Some(InstructionOrCommand::Instruction(
-                                                    Instruction::new_label(
-                                                        InstructionId::IfGoTo,
-                                                        literal,
-                                                    )
-                                                    .unwrap(),
-                                                )))
-                                            }
+                    '!' => match self.get_next_char()? {
+                        '?' => {
+                            let literal =
+                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                            match literal {
+                                (literal, Some((next_index, '<'))) => {
+                                    if next_index > self.index + 2 + 3 {
+                                        Err(LiteralIsTooLong {
+                                            literal_index: self.index + 2,
                                         }
-                                        (_, Some((_, _)) | None) => {
-                                            Err(ParseNextErrors::UnknownInstruction(
-                                                UnknownInstruction { index: self.index },
-                                            ))
-                                        }
+                                        .into())
+                                    } else {
+                                        Ok(Instruction::new_label(InstructionId::IfGoTo, literal)
+                                            .unwrap()
+                                            .into())
                                     }
                                 }
-                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                })),
-                            },
+                                (_, Some((_, _)) | None) => {
+                                    Err(UnknownInstruction { index: self.index }.into())
+                                }
+                            }
                         }
-                    }
-                    '#' => {
-                        let second_char = self.get_next_char();
-                        match second_char {
-                            Err(e) => Err(e.into()),
-                            Ok(second_char) => match second_char {
-                                'E' => Ok(Some(InstructionOrCommand::Instruction(
-                                    Instruction::new_simple(InstructionId::End).unwrap(),
-                                ))),
-                                'R' => {
-                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
-                                        &mut self.enumeration,
-                                    );
-                                    match literal {
-                                        (literal, Some((next_index, '<'))) => {
-                                            if next_index > self.index + 2 + 3 {
-                                                Err(ParseNextErrors::LiteralIsTooLong(
-                                                    LiteralIsTooLong {
-                                                        literal_index: self.index + 2,
-                                                    },
-                                                ))
-                                            } else {
-                                                Ok(Some(InstructionOrCommand::Instruction(
-                                                    Instruction::new_label(
-                                                        InstructionId::OnResp,
-                                                        literal,
-                                                    )
-                                                    .unwrap(),
-                                                )))
-                                            }
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    '#' => match self.get_next_char()? {
+                        'E' => Ok(Instruction::new_simple(InstructionId::End).unwrap().into()),
+                        'R' => {
+                            let literal =
+                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                            match literal {
+                                (literal, Some((next_index, '<'))) => {
+                                    if next_index > self.index + 2 + 3 {
+                                        Err(LiteralIsTooLong {
+                                            literal_index: self.index + 2,
                                         }
-                                        (_, Some((_, _)) | None) => {
-                                            Err(ParseNextErrors::UnknownInstruction(
-                                                UnknownInstruction { index: self.index },
-                                            ))
-                                        }
+                                        .into())
+                                    } else {
+                                        Ok(Instruction::new_label(InstructionId::OnResp, literal)
+                                            .unwrap()
+                                            .into())
                                     }
                                 }
-                                'S' => Ok(Some(InstructionOrCommand::Instruction(
-                                    Instruction::new_simple(InstructionId::Start).unwrap(),
-                                ))),
-                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                })),
-                            },
+                                (_, Some((_, _)) | None) => {
+                                    Err(UnknownInstruction { index: self.index }.into())
+                                }
+                            }
                         }
-                    }
-                    ',' => Instruction::new_simple(InstructionId::Back).unwrap().into(),
-                    '-' => {
-                        let second_char = self.get_next_char();
-                        match second_char {
-                            Err(e) => Err(e.into()),
-                            Ok(second_char) => match second_char {
-                                '>' => {
-                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
-                                        &mut self.enumeration,
-                                    );
-                                    match literal {
-                                        (literal, Some((next_index, '>'))) => {
-                                            if next_index > self.index + 2 + 3 {
-                                                Err(ParseNextErrors::LiteralIsTooLong(
-                                                    LiteralIsTooLong {
-                                                        literal_index: self.index + 2,
-                                                    },
-                                                ))
-                                            } else {
-                                                Ok(Some(InstructionOrCommand::Instruction(
-                                                    Instruction::new_label(
-                                                        InstructionId::GoSub1,
-                                                        literal,
-                                                    )
-                                                    .unwrap(),
-                                                )))
-                                            }
+                        'S' => Ok(Instruction::new_simple(InstructionId::Start)
+                            .unwrap()
+                            .into()),
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    ',' => Ok(Instruction::new_simple(InstructionId::Back).unwrap().into()),
+                    '-' => match self.get_next_char()? {
+                        '>' => {
+                            let literal =
+                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                            match literal {
+                                (literal, Some((next_index, '>'))) => {
+                                    if next_index > self.index + 2 + 3 {
+                                        Err(LiteralIsTooLong {
+                                            literal_index: self.index + 2,
                                         }
-                                        (_, Some((_, _)) | None) => {
-                                            Err(ParseNextErrors::UnknownInstruction(
-                                                UnknownInstruction { index: self.index },
-                                            ))
-                                        }
+                                        .into())
+                                    } else {
+                                        Ok(Instruction::new_label(InstructionId::GoSub1, literal)
+                                            .unwrap()
+                                            .into())
                                     }
                                 }
-                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                })),
-                            },
+                                (_, Some((_, _)) | None) => {
+                                    Err(UnknownInstruction { index: self.index }.into())
+                                }
+                            }
                         }
-                    }
-                    ':' => {
-                        let second_char = self.get_next_char();
-                        match second_char {
-                            Err(e) => Err(e.into()),
-                            Ok(second_char) => match second_char {
-                                '>' => {
-                                    let literal = LabelIdentifierLiteral::new_from_enumerate(
-                                        &mut self.enumeration,
-                                    );
-                                    match literal {
-                                        (literal, Some((next_index, '>'))) => {
-                                            if next_index > self.index + 2 + 3 {
-                                                Err(ParseNextErrors::LiteralIsTooLong(
-                                                    LiteralIsTooLong {
-                                                        literal_index: self.index + 2,
-                                                    },
-                                                ))
-                                            } else {
-                                                Ok(Some(InstructionOrCommand::Instruction(
-                                                    Instruction::new_label(
-                                                        InstructionId::GoSub,
-                                                        literal,
-                                                    )
-                                                    .unwrap(),
-                                                )))
-                                            }
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    ':' => match self.get_next_char()? {
+                        '>' => {
+                            let literal =
+                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                            match literal {
+                                (literal, Some((next_index, '>'))) => {
+                                    if next_index > self.index + 2 + 3 {
+                                        Err(LiteralIsTooLong {
+                                            literal_index: self.index + 2,
                                         }
-                                        (_, Some((_, _)) | None) => {
-                                            Err(ParseNextErrors::UnknownInstruction(
-                                                UnknownInstruction { index: self.index },
-                                            ))
-                                        }
+                                        .into())
+                                    } else {
+                                        Ok(Instruction::new_label(InstructionId::GoSub, literal)
+                                            .unwrap()
+                                            .into())
                                     }
                                 }
-                                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                })),
-                            },
+                                (_, Some((_, _)) | None) => {
+                                    Err(UnknownInstruction { index: self.index }.into())
+                                }
+                            }
                         }
-                    }
-                    '<' => {
-                        let res = self.parse_less_than_sign();
-                        match res {
-                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
-                        }
-                    }
-                    '=' => {
-                        let res = self.parse_equals_sign();
-                        match res {
-                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(e),
-                        }
-                    }
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    '<' => Ok(self.parse_less_than_sign()?.into()),
+                    '=' => Ok(self.parse_equals_sign()?.into()),
                     '>' => {
                         let literal =
                             LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
                         match literal {
                             (literal, Some((next_index, '|'))) => {
                                 if next_index > self.index + 1 + 3 {
-                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                    Err(LiteralIsTooLong {
                                         literal_index: self.index + 1,
-                                    }))
+                                    }
+                                    .into())
                                 } else {
-                                    Ok(Some(InstructionOrCommand::Instruction(
-                                        Instruction::new_label(InstructionId::GoTo, literal)
-                                            .unwrap(),
-                                    )))
+                                    Ok(Instruction::new_label(InstructionId::GoTo, literal)
+                                        .unwrap()
+                                        .into())
                                 }
                             }
                             (_, Some((_, _)) | None) => {
-                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                }))
+                                Err(UnknownInstruction { index: self.index }.into())
                             }
                         }
                     }
@@ -431,85 +356,69 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         match literal {
                             (literal, Some((next_index, '<'))) => {
                                 if next_index > self.index + 1 + 3 {
-                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                    Err(LiteralIsTooLong {
                                         literal_index: self.index + 1,
-                                    }))
+                                    }
+                                    .into())
                                 } else {
-                                    Ok(Some(InstructionOrCommand::Instruction(
-                                        Instruction::new_label(InstructionId::IfNotGoTo, literal)
-                                            .unwrap(),
-                                    )))
+                                    Ok(Instruction::new_label(InstructionId::IfNotGoTo, literal)
+                                        .unwrap()
+                                        .into())
                                 }
                             }
                             (_, Some((_, _)) | None) => {
-                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                }))
+                                Err(UnknownInstruction { index: self.index }.into())
                             }
                         }
                     }
-                    '[' => {
-                        let res = self.parse_left_square_bracket();
-                        match res {
-                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
-                        }
-                    }
-                    '^' => {
-                        let res = self.parse_circumflex_accent();
-                        match res {
-                            Ok(ins) => Ok(Some(InstructionOrCommand::Instruction(ins))),
-                            Err(e) => Err(ParseNextErrors::UnknownInstruction(e)),
-                        }
-                    }
-                    'a' => Instruction::new_simple(InstructionId::LookA)
+                    '[' => Ok(self.parse_left_square_bracket()?.into()),
+                    '^' => Ok(self.parse_circumflex_accent()?.into()),
+                    'a' => Ok(Instruction::new_simple(InstructionId::LookA)
                         .unwrap()
-                        .into(),
-                    'b' => Instruction::new_simple(InstructionId::ActionBuild)
+                        .into()),
+                    'b' => Ok(Instruction::new_simple(InstructionId::ActionBuild)
                         .unwrap()
-                        .into(),
-                    'd' => Instruction::new_simple(InstructionId::LookD)
+                        .into()),
+                    'd' => Ok(Instruction::new_simple(InstructionId::LookD)
                         .unwrap()
-                        .into(),
-                    'g' => Instruction::new_simple(InstructionId::ActionGeo)
+                        .into()),
+                    'g' => Ok(Instruction::new_simple(InstructionId::ActionGeo)
                         .unwrap()
-                        .into(),
-                    'h' => Instruction::new_simple(InstructionId::ActionHeal)
+                        .into()),
+                    'h' => Ok(Instruction::new_simple(InstructionId::ActionHeal)
                         .unwrap()
-                        .into(),
-                    'q' => Instruction::new_simple(InstructionId::ActionQuadro)
+                        .into()),
+                    'q' => Ok(Instruction::new_simple(InstructionId::ActionQuadro)
                         .unwrap()
-                        .into(),
-                    'r' => Instruction::new_simple(InstructionId::ActionRoad)
+                        .into()),
+                    'r' => Ok(Instruction::new_simple(InstructionId::ActionRoad)
                         .unwrap()
-                        .into(),
-                    's' => Instruction::new_simple(InstructionId::LookS)
+                        .into()),
+                    's' => Ok(Instruction::new_simple(InstructionId::LookS)
                         .unwrap()
-                        .into(),
-                    'w' => Instruction::new_simple(InstructionId::LookW)
+                        .into()),
+                    'w' => Ok(Instruction::new_simple(InstructionId::LookW)
                         .unwrap()
-                        .into(),
-                    'z' => Instruction::new_simple(InstructionId::Digg).unwrap().into(),
+                        .into()),
+                    'z' => Ok(Instruction::new_simple(InstructionId::Digg).unwrap().into()),
                     '|' => {
                         let literal =
                             LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
                         match literal {
                             (literal, Some((next_index, ':'))) => {
                                 if next_index > self.index + 1 + 3 {
-                                    Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
+                                    Err(LiteralIsTooLong {
                                         literal_index: self.index + 1,
-                                    }))
+                                    }
+                                    .into())
                                 } else {
-                                    Ok(Some(InstructionOrCommand::Instruction(
-                                        Instruction::new_label(InstructionId::Label, literal)
-                                            .unwrap(),
-                                    )))
+                                    Ok(Instruction::new_label(InstructionId::Label, literal)
+                                        .unwrap()
+                                        .into())
                                 }
                             }
                             (_, Some((_, _)) | None) => {
-                                Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                    index: self.index,
-                                }))
+                                Err(UnknownInstruction { index: self.index }.into())
                             }
                         }
                     }
@@ -521,12 +430,13 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     fn check_magic(&mut self) -> Result<(), CheckMagicErrors> {
         let magic = self.enumeration.next();
         match magic {
-            None => Err(CheckMagicErrors::MagicNotFoundError(MagicNotFoundError {})),
+            None => Err(MagicNotFoundError {}.into()),
             Some((_, magic)) => match magic {
                 '$' => Ok(()),
-                _ => Err(CheckMagicErrors::IllegalMagicError(IllegalMagicError {
+                _ => Err(IllegalMagicError {
                     illegal_magic: magic,
-                })),
+                }
+                .into()),
             },
         }
     }
@@ -538,323 +448,151 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
         }
     }
     fn parse_less_than_sign(&mut self) -> Result<Instruction, UnknownInstruction> {
-        let second_char = self.get_next_char();
-        match second_char {
-            Err(e) => Err(e),
-            Ok(second_char) => match second_char {
-                '|' => Ok(Instruction::new_simple(InstructionId::Return).unwrap()),
-                '-' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            '|' => Ok(Instruction::new_simple(InstructionId::Return1).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                '=' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            '|' => Ok(Instruction::new_simple(InstructionId::ReturnF).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
+        match self.get_next_char()? {
+            '|' => Ok(Instruction::new_simple(InstructionId::Return).unwrap()),
+            '-' => match self.get_next_char()? {
+                '|' => Ok(Instruction::new_simple(InstructionId::Return1).unwrap()),
                 _ => Err(UnknownInstruction { index: self.index }),
             },
+            '=' => match self.get_next_char()? {
+                '|' => Ok(Instruction::new_simple(InstructionId::ReturnF).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
         }
     }
     fn parse_equals_sign(&mut self) -> Result<Instruction, ParseNextErrors> {
-        let second_char = self.get_next_char();
-        match second_char {
-            Err(e) => Err(e.into()),
-            Ok(second_char) => match second_char {
-                '>' => {
-                    let literal = LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                    match literal {
-                        (literal, Some((next_index, '>'))) => {
-                            if next_index > self.index + 2 + 3 {
-                                Err(ParseNextErrors::LiteralIsTooLong(LiteralIsTooLong {
-                                    literal_index: self.index + 1,
-                                }))
-                            } else {
-                                Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
+        match self.get_next_char()? {
+            '>' => {
+                let literal = LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
+                match literal {
+                    (literal, Some((next_index, '>'))) => {
+                        if next_index > self.index + 2 + 3 {
+                            Err(LiteralIsTooLong {
+                                literal_index: self.index + 1,
                             }
-                        }
-                        (_, Some((_, _)) | None) => {
-                            Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                index: self.index,
-                            }))
+                            .into())
+                        } else {
+                            Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
                         }
                     }
-                }
-                'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
-                'B' => Ok(Instruction::new_simple(InstructionId::CccBlackRock).unwrap()),
-                'G' => Ok(Instruction::new_simple(InstructionId::CcGun).unwrap()),
-                'K' => Ok(Instruction::new_simple(InstructionId::CccRedRock).unwrap()),
-                'R' => Ok(Instruction::new_simple(InstructionId::CccRoad).unwrap()),
-                'a' => Ok(Instruction::new_simple(InstructionId::CcAlive).unwrap()),
-                'b' => Ok(Instruction::new_simple(InstructionId::CcBolder).unwrap()),
-                'c' => Ok(Instruction::new_simple(InstructionId::CcCrystall).unwrap()),
-                'd' => Ok(Instruction::new_simple(InstructionId::CcDead).unwrap()),
-                'e' => Ok(Instruction::new_simple(InstructionId::CcEmpty).unwrap()),
-                'f' => Ok(Instruction::new_simple(InstructionId::CcGravity).unwrap()),
-                'g' => Ok(Instruction::new_simple(InstructionId::CccGreenBlock).unwrap()),
-                'h' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e.into()),
-                        Ok(third_char) => match third_char {
-                            'p' => {
-                                let fourth_char = self.get_next_char();
-                                match fourth_char {
-                                    Err(e) => Err(e.into()),
-                                    Ok(fourth_char) => match fourth_char {
-                                        '-' => {
-                                            Ok(Instruction::new_simple(InstructionId::CbHp)
-                                                .unwrap())
-                                        }
-                                        '5' => {
-                                            let fifth_char = self.get_next_char();
-                                            match fifth_char {
-                                                Err(e) => Err(e.into()),
-                                                Ok(fifth_char) => match fifth_char {
-                                                    '0' => Ok(Instruction::new_simple(
-                                                        InstructionId::CbHp50,
-                                                    )
-                                                    .unwrap()),
-                                                    _ => Err(ParseNextErrors::UnknownInstruction(
-                                                        UnknownInstruction { index: self.index },
-                                                    )),
-                                                },
-                                            }
-                                        }
-                                        _ => Err(ParseNextErrors::UnknownInstruction(
-                                            UnknownInstruction { index: self.index },
-                                        )),
-                                    },
-                                }
-                            }
-                            _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                                index: self.index,
-                            })),
-                        },
+                    (_, Some((_, _)) | None) => {
+                        Err(UnknownInstruction { index: self.index }.into())
                     }
                 }
-                'k' => Ok(Instruction::new_simple(InstructionId::CcRock).unwrap()),
-                'n' => Ok(Instruction::new_simple(InstructionId::CcNotEmpty).unwrap()),
-                'o' => Ok(Instruction::new_simple(InstructionId::CccOpor).unwrap()),
-                'q' => Ok(Instruction::new_simple(InstructionId::CccQuadro).unwrap()),
-                'r' => Ok(Instruction::new_simple(InstructionId::CccRedBlock).unwrap()),
-                's' => Ok(Instruction::new_simple(InstructionId::CcSand).unwrap()),
-                'x' => Ok(Instruction::new_simple(InstructionId::CccBox).unwrap()),
-                'y' => Ok(Instruction::new_simple(InstructionId::CccYellowBlock).unwrap()),
-                _ => Err(ParseNextErrors::UnknownInstruction(UnknownInstruction {
-                    index: self.index,
-                })),
+            }
+            'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
+            'B' => Ok(Instruction::new_simple(InstructionId::CccBlackRock).unwrap()),
+            'G' => Ok(Instruction::new_simple(InstructionId::CcGun).unwrap()),
+            'K' => Ok(Instruction::new_simple(InstructionId::CccRedRock).unwrap()),
+            'R' => Ok(Instruction::new_simple(InstructionId::CccRoad).unwrap()),
+            'a' => Ok(Instruction::new_simple(InstructionId::CcAlive).unwrap()),
+            'b' => Ok(Instruction::new_simple(InstructionId::CcBolder).unwrap()),
+            'c' => Ok(Instruction::new_simple(InstructionId::CcCrystall).unwrap()),
+            'd' => Ok(Instruction::new_simple(InstructionId::CcDead).unwrap()),
+            'e' => Ok(Instruction::new_simple(InstructionId::CcEmpty).unwrap()),
+            'f' => Ok(Instruction::new_simple(InstructionId::CcGravity).unwrap()),
+            'g' => Ok(Instruction::new_simple(InstructionId::CccGreenBlock).unwrap()),
+            'h' => match self.get_next_char()? {
+                'p' => match self.get_next_char()? {
+                    '-' => Ok(Instruction::new_simple(InstructionId::CbHp).unwrap()),
+                    '5' => match self.get_next_char()? {
+                        '0' => Ok(Instruction::new_simple(InstructionId::CbHp50).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }.into()),
+                },
+                _ => Err(UnknownInstruction { index: self.index }.into()),
             },
+            'k' => Ok(Instruction::new_simple(InstructionId::CcRock).unwrap()),
+            'n' => Ok(Instruction::new_simple(InstructionId::CcNotEmpty).unwrap()),
+            'o' => Ok(Instruction::new_simple(InstructionId::CccOpor).unwrap()),
+            'q' => Ok(Instruction::new_simple(InstructionId::CccQuadro).unwrap()),
+            'r' => Ok(Instruction::new_simple(InstructionId::CccRedBlock).unwrap()),
+            's' => Ok(Instruction::new_simple(InstructionId::CcSand).unwrap()),
+            'x' => Ok(Instruction::new_simple(InstructionId::CccBox).unwrap()),
+            'y' => Ok(Instruction::new_simple(InstructionId::CccYellowBlock).unwrap()),
+            _ => Err(UnknownInstruction { index: self.index }.into()),
         }
     }
     fn parse_left_square_bracket(&mut self) -> Result<Instruction, UnknownInstruction> {
-        let second_char = self.get_next_char();
-        match second_char {
-            Err(e) => Err(e),
-            Ok(second_char) => match second_char {
-                'A' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            'S' => {
-                                let fourth_char = self.get_next_char();
-                                match fourth_char {
-                                    Err(e) => Err(e),
-                                    Ok(fourth_char) => match fourth_char {
-                                        ']' => {
-                                            Ok(Instruction::new_simple(InstructionId::CellAs)
-                                                .unwrap())
-                                        }
-                                        _ => Err(UnknownInstruction { index: self.index }),
-                                    },
-                                }
-                            }
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellA).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'D' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            'W' => {
-                                let fourth_char = self.get_next_char();
-                                match fourth_char {
-                                    Err(e) => Err(e),
-                                    Ok(fourth_char) => match fourth_char {
-                                        ']' => {
-                                            Ok(Instruction::new_simple(InstructionId::CellDw)
-                                                .unwrap())
-                                        }
-                                        _ => Err(UnknownInstruction { index: self.index }),
-                                    },
-                                }
-                            }
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellD).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'F' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellF).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'S' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            'D' => {
-                                let fourth_char = self.get_next_char();
-                                match fourth_char {
-                                    Err(e) => Err(e),
-                                    Ok(fourth_char) => match fourth_char {
-                                        ']' => {
-                                            Ok(Instruction::new_simple(InstructionId::CellSd)
-                                                .unwrap())
-                                        }
-                                        _ => Err(UnknownInstruction { index: self.index }),
-                                    },
-                                }
-                            }
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellS).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'W' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            'A' => {
-                                let fourth_char = self.get_next_char();
-                                match fourth_char {
-                                    Err(e) => Err(e),
-                                    Ok(fourth_char) => match fourth_char {
-                                        ']' => {
-                                            Ok(Instruction::new_simple(InstructionId::CellWa)
-                                                .unwrap())
-                                        }
-                                        _ => Err(UnknownInstruction { index: self.index }),
-                                    },
-                                }
-                            }
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellW).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'a' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellAa).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'd' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellDd).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'f' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellFf).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'l' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => {
-                                Ok(Instruction::new_simple(InstructionId::CellLeftHand).unwrap())
-                            }
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'r' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => {
-                                Ok(Instruction::new_simple(InstructionId::CellRightHand).unwrap())
-                            }
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                's' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellSs).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
-                'w' => {
-                    let third_char = self.get_next_char();
-                    match third_char {
-                        Err(e) => Err(e),
-                        Ok(third_char) => match third_char {
-                            ']' => Ok(Instruction::new_simple(InstructionId::CellWw).unwrap()),
-                            _ => Err(UnknownInstruction { index: self.index }),
-                        },
-                    }
-                }
+        match self.get_next_char()? {
+            'A' => match self.get_next_char()? {
+                'S' => match self.get_next_char()? {
+                    ']' => Ok(Instruction::new_simple(InstructionId::CellAs).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+
+                ']' => Ok(Instruction::new_simple(InstructionId::CellA).unwrap()),
                 _ => Err(UnknownInstruction { index: self.index }),
             },
+            'D' => match self.get_next_char()? {
+                'W' => match self.get_next_char()? {
+                    ']' => Ok(Instruction::new_simple(InstructionId::CellDw).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                ']' => Ok(Instruction::new_simple(InstructionId::CellD).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'F' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellF).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'S' => match self.get_next_char()? {
+                'D' => match self.get_next_char()? {
+                    ']' => Ok(Instruction::new_simple(InstructionId::CellSd).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                ']' => Ok(Instruction::new_simple(InstructionId::CellS).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'W' => match self.get_next_char()? {
+                'A' => match self.get_next_char()? {
+                    ']' => Ok(Instruction::new_simple(InstructionId::CellWa).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                ']' => Ok(Instruction::new_simple(InstructionId::CellW).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'a' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellAa).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'd' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellDd).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'f' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellFf).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'l' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellLeftHand).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'r' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellRightHand).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            's' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellSs).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'w' => match self.get_next_char()? {
+                ']' => Ok(Instruction::new_simple(InstructionId::CellWw).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
         }
     }
     fn parse_circumflex_accent(&mut self) -> Result<Instruction, UnknownInstruction> {
-        let second_char = self.get_next_char();
-        match second_char {
-            Err(e) => Err(e),
-            Ok(second_char) => match second_char {
-                'F' => Ok(Instruction::new_simple(InstructionId::MoveF).unwrap()),
-                'W' => Ok(Instruction::new_simple(InstructionId::MoveW).unwrap()),
-                'D' => Ok(Instruction::new_simple(InstructionId::MoveD).unwrap()),
-                'S' => Ok(Instruction::new_simple(InstructionId::MoveS).unwrap()),
-                'A' => Ok(Instruction::new_simple(InstructionId::MoveA).unwrap()),
-                _ => Err(UnknownInstruction { index: self.index }),
-            },
+        match self.get_next_char()? {
+            'F' => Ok(Instruction::new_simple(InstructionId::MoveF).unwrap()),
+            'W' => Ok(Instruction::new_simple(InstructionId::MoveW).unwrap()),
+            'D' => Ok(Instruction::new_simple(InstructionId::MoveD).unwrap()),
+            'S' => Ok(Instruction::new_simple(InstructionId::MoveS).unwrap()),
+            'A' => Ok(Instruction::new_simple(InstructionId::MoveA).unwrap()),
+            _ => Err(UnknownInstruction { index: self.index }),
         }
     }
 }
