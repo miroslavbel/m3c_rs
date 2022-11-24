@@ -5,7 +5,7 @@
 
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
-use crate::formats::internal::literals::LabelIdentifierLiteral;
+use crate::formats::internal::literals::{LabelIdentifierLiteral, Literal};
 use crate::formats::internal::{
     Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
 };
@@ -228,50 +228,20 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     // Instructions
                     '!' => match self.get_next_char()? {
                         '?' => {
-                            let literal =
-                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                            match literal {
-                                (literal, Some((next_index, '<'))) => {
-                                    if next_index > self.index + 2 + 3 {
-                                        Err(LiteralIsTooLong {
-                                            literal_index: self.index + 2,
-                                        }
-                                        .into())
-                                    } else {
-                                        Ok(Instruction::new_label(InstructionId::IfGoTo, literal)
-                                            .unwrap()
-                                            .into())
-                                    }
-                                }
-                                (_, Some((_, _)) | None) => {
-                                    Err(UnknownInstruction { index: self.index }.into())
-                                }
-                            }
+                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            Ok(Instruction::new_label(InstructionId::IfGoTo, literal)
+                                .unwrap()
+                                .into())
                         }
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
                     '#' => match self.get_next_char()? {
                         'E' => Ok(Instruction::new_simple(InstructionId::End).unwrap().into()),
                         'R' => {
-                            let literal =
-                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                            match literal {
-                                (literal, Some((next_index, '<'))) => {
-                                    if next_index > self.index + 2 + 3 {
-                                        Err(LiteralIsTooLong {
-                                            literal_index: self.index + 2,
-                                        }
-                                        .into())
-                                    } else {
-                                        Ok(Instruction::new_label(InstructionId::OnResp, literal)
-                                            .unwrap()
-                                            .into())
-                                    }
-                                }
-                                (_, Some((_, _)) | None) => {
-                                    Err(UnknownInstruction { index: self.index }.into())
-                                }
-                            }
+                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            Ok(Instruction::new_label(InstructionId::OnResp, literal)
+                                .unwrap()
+                                .into())
                         }
                         'S' => Ok(Instruction::new_simple(InstructionId::Start)
                             .unwrap()
@@ -281,95 +251,35 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     ',' => Ok(Instruction::new_simple(InstructionId::Back).unwrap().into()),
                     '-' => match self.get_next_char()? {
                         '>' => {
-                            let literal =
-                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                            match literal {
-                                (literal, Some((next_index, '>'))) => {
-                                    if next_index > self.index + 2 + 3 {
-                                        Err(LiteralIsTooLong {
-                                            literal_index: self.index + 2,
-                                        }
-                                        .into())
-                                    } else {
-                                        Ok(Instruction::new_label(InstructionId::GoSub1, literal)
-                                            .unwrap()
-                                            .into())
-                                    }
-                                }
-                                (_, Some((_, _)) | None) => {
-                                    Err(UnknownInstruction { index: self.index }.into())
-                                }
-                            }
+                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            Ok(Instruction::new_label(InstructionId::GoSub1, literal)
+                                .unwrap()
+                                .into())
                         }
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
                     ':' => match self.get_next_char()? {
                         '>' => {
-                            let literal =
-                                LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                            match literal {
-                                (literal, Some((next_index, '>'))) => {
-                                    if next_index > self.index + 2 + 3 {
-                                        Err(LiteralIsTooLong {
-                                            literal_index: self.index + 2,
-                                        }
-                                        .into())
-                                    } else {
-                                        Ok(Instruction::new_label(InstructionId::GoSub, literal)
-                                            .unwrap()
-                                            .into())
-                                    }
-                                }
-                                (_, Some((_, _)) | None) => {
-                                    Err(UnknownInstruction { index: self.index }.into())
-                                }
-                            }
+                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            Ok(Instruction::new_label(InstructionId::GoSub, literal)
+                                .unwrap()
+                                .into())
                         }
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
                     '<' => Ok(self.parse_less_than_sign()?.into()),
                     '=' => Ok(self.parse_equals_sign()?.into()),
                     '>' => {
-                        let literal =
-                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                        match literal {
-                            (literal, Some((next_index, '|'))) => {
-                                if next_index > self.index + 1 + 3 {
-                                    Err(LiteralIsTooLong {
-                                        literal_index: self.index + 1,
-                                    }
-                                    .into())
-                                } else {
-                                    Ok(Instruction::new_label(InstructionId::GoTo, literal)
-                                        .unwrap()
-                                        .into())
-                                }
-                            }
-                            (_, Some((_, _)) | None) => {
-                                Err(UnknownInstruction { index: self.index }.into())
-                            }
-                        }
+                        let literal = self.parse_literal::<LabelIdentifierLiteral>('|', 1)?;
+                        Ok(Instruction::new_label(InstructionId::GoTo, literal)
+                            .unwrap()
+                            .into())
                     }
                     '?' => {
-                        let literal =
-                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                        match literal {
-                            (literal, Some((next_index, '<'))) => {
-                                if next_index > self.index + 1 + 3 {
-                                    Err(LiteralIsTooLong {
-                                        literal_index: self.index + 1,
-                                    }
-                                    .into())
-                                } else {
-                                    Ok(Instruction::new_label(InstructionId::IfNotGoTo, literal)
-                                        .unwrap()
-                                        .into())
-                                }
-                            }
-                            (_, Some((_, _)) | None) => {
-                                Err(UnknownInstruction { index: self.index }.into())
-                            }
-                        }
+                        let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 1)?;
+                        Ok(Instruction::new_label(InstructionId::IfNotGoTo, literal)
+                            .unwrap()
+                            .into())
                     }
                     '[' => Ok(self.parse_left_square_bracket()?.into()),
                     '^' => Ok(self.parse_circumflex_accent()?.into()),
@@ -402,25 +312,10 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         .into()),
                     'z' => Ok(Instruction::new_simple(InstructionId::Digg).unwrap().into()),
                     '|' => {
-                        let literal =
-                            LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                        match literal {
-                            (literal, Some((next_index, ':'))) => {
-                                if next_index > self.index + 1 + 3 {
-                                    Err(LiteralIsTooLong {
-                                        literal_index: self.index + 1,
-                                    }
-                                    .into())
-                                } else {
-                                    Ok(Instruction::new_label(InstructionId::Label, literal)
-                                        .unwrap()
-                                        .into())
-                                }
-                            }
-                            (_, Some((_, _)) | None) => {
-                                Err(UnknownInstruction { index: self.index }.into())
-                            }
-                        }
+                        let literal = self.parse_literal::<LabelIdentifierLiteral>(':', 1)?;
+                        Ok(Instruction::new_label(InstructionId::Label, literal)
+                            .unwrap()
+                            .into())
                     }
                     _ => todo!(),
                 }
@@ -447,6 +342,26 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             Some((_, ch)) => Ok(ch),
         }
     }
+    fn parse_literal<L: Literal>(
+        &mut self,
+        next_char: char,
+        offset: usize,
+    ) -> Result<L, ParseNextErrors> {
+        let literal = Literal::new_from_enumerate(&mut self.enumeration);
+        match literal {
+            (literal, Some((next_index, c))) if c == next_char => {
+                if next_index > self.index + offset + L::MAX_CHAR_LEN {
+                    Err(LiteralIsTooLong {
+                        literal_index: self.index + offset,
+                    }
+                    .into())
+                } else {
+                    Ok(literal)
+                }
+            }
+            (_, Some((_, _)) | None) => Err(UnknownInstruction { index: self.index }.into()),
+        }
+    }
     fn parse_less_than_sign(&mut self) -> Result<Instruction, UnknownInstruction> {
         match self.get_next_char()? {
             '|' => Ok(Instruction::new_simple(InstructionId::Return).unwrap()),
@@ -464,22 +379,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     fn parse_equals_sign(&mut self) -> Result<Instruction, ParseNextErrors> {
         match self.get_next_char()? {
             '>' => {
-                let literal = LabelIdentifierLiteral::new_from_enumerate(&mut self.enumeration);
-                match literal {
-                    (literal, Some((next_index, '>'))) => {
-                        if next_index > self.index + 2 + 3 {
-                            Err(LiteralIsTooLong {
-                                literal_index: self.index + 1,
-                            }
-                            .into())
-                        } else {
-                            Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
-                        }
-                    }
-                    (_, Some((_, _)) | None) => {
-                        Err(UnknownInstruction { index: self.index }.into())
-                    }
-                }
+                let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
             }
             'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
             'B' => Ok(Instruction::new_simple(InstructionId::CccBlackRock).unwrap()),
