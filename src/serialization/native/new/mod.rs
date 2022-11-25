@@ -281,6 +281,29 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             .unwrap()
                             .into())
                     }
+                    'A' => Ok(self.parse_latin_capital_letter_a()?.into()),
+                    'B' => Ok(self.parse_latin_capital_letter_b()?.into()),
+                    'C' => Ok(self.parse_latin_capital_letter_c()?.into()),
+                    'D' => Ok(self.parse_latin_capital_letter_d()?.into()),
+                    'F' => Ok(self.parse_latin_capital_letter_f()?.into()),
+                    'H' => Ok(self.parse_latin_capital_letter_h()?.into()),
+                    'M' => Ok(self.parse_latin_capital_letter_m()?.into()),
+                    'O' => match self.get_next_char()? {
+                        'R' => Ok(Instruction::new_simple(InstructionId::BoolModeOr)
+                            .unwrap()
+                            .into()),
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    'R' => Ok(self.parse_latin_capital_letter_r()?.into()),
+                    'V' => match self.get_next_char()? {
+                        'B' => match self.get_next_char()? {
+                            ';' => Ok(Instruction::new_simple(InstructionId::ActionWb)
+                                .unwrap()
+                                .into()),
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
                     '[' => Ok(self.parse_left_square_bracket()?.into()),
                     '^' => Ok(self.parse_circumflex_accent()?.into()),
                     'a' => Ok(Instruction::new_simple(InstructionId::LookA)
@@ -416,6 +439,172 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             _ => Err(UnknownInstruction { index: self.index }.into()),
         }
     }
+    fn parse_latin_capital_letter_a(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'G' => match self.get_next_char()? {
+                'R' => match self.get_next_char()? {
+                    '+' => Ok(Instruction::new_simple(InstructionId::ModeAgrOn).unwrap()),
+                    '-' => Ok(Instruction::new_simple(InstructionId::ModeAgrOff).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }.into()),
+                },
+                _ => Err(UnknownInstruction { index: self.index }.into()),
+            },
+            'N' => match self.get_next_char()? {
+                'D' => Ok(Instruction::new_simple(InstructionId::BoolModeAnd).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }.into()),
+            },
+            'U' => match self.get_next_char()? {
+                'T' => match self.get_next_char()? {
+                    '+' => Ok(Instruction::new_simple(InstructionId::ModeAutodiggOn).unwrap()),
+                    '-' => Ok(Instruction::new_simple(InstructionId::ModeAutodiggOff).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }.into()),
+                },
+                _ => Err(UnknownInstruction { index: self.index }.into()),
+            },
+            _ => Err(UnknownInstruction { index: self.index }.into()),
+        }
+    }
+    fn parse_latin_capital_letter_b(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            '1' => match self.get_next_char()? {
+                ';' => Ok(Instruction::new_simple(InstructionId::ActionB1).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            '2' => match self.get_next_char()? {
+                ';' => Ok(Instruction::new_simple(InstructionId::ActionB3).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            '3' => match self.get_next_char()? {
+                ';' => Ok(Instruction::new_simple(InstructionId::ActionB2).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'E' => match self.get_next_char()? {
+                'E' => match self.get_next_char()? {
+                    'P' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::ActionBibika).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'U' => match self.get_next_char()? {
+                'I' => match self.get_next_char()? {
+                    'L' => match self.get_next_char()? {
+                        'D' => match self.get_next_char()? {
+                            ';' => Ok(Instruction::new_simple(InstructionId::StdBuild).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_c(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'C' => match self.get_next_char()? {
+                'W' => match self.get_next_char()? {
+                    ';' => Ok(Instruction::new_simple(InstructionId::RotateCcw).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'W' => match self.get_next_char()? {
+                ';' => Ok(Instruction::new_simple(InstructionId::RotateCw).unwrap()),
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_d(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'I' => match self.get_next_char()? {
+                'G' => match self.get_next_char()? {
+                    'G' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::StdDigg).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_f(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'L' => match self.get_next_char()? {
+                'I' => match self.get_next_char()? {
+                    'P' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::ProgFlip).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'I' => match self.get_next_char()? {
+                'L' => match self.get_next_char()? {
+                    'L' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::FillGun).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_h(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'E' => match self.get_next_char()? {
+                'A' => match self.get_next_char()? {
+                    'L' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::StdHeal).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_m(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'I' => match self.get_next_char()? {
+                'N' => match self.get_next_char()? {
+                    'E' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::StdMine).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
+    fn parse_latin_capital_letter_r(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'A' => match self.get_next_char()? {
+                'N' => match self.get_next_char()? {
+                    'D' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::ActionRandom).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
     fn parse_left_square_bracket(&mut self) -> Result<Instruction, UnknownInstruction> {
         match self.get_next_char()? {
             'A' => match self.get_next_char()? {
@@ -538,7 +727,24 @@ mod tests {
 
         #[test]
         fn deserialize_simple_instructions() {
-            let s = "$<|<-|<=|^F^W^D^S^Aadswzghrbq,[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]=G=n=e=f=c=a=b=s=k=d=A=B=K=g=y=r=o=q=x=R=hp50=hp-#S#E<|";
+            let s = concat!(
+                "$<|<-|<=|",
+                "^F^W^D^S^A",
+                "adswzghrbq,",
+                "[F][W][WA][D][DW][S][SD][A][AS][r][l][f][w][d][s][a]",
+                "=G=n=e=f=c=a=b=s=k=d=A",
+                "=B=K=g=y=r=o=q=x=R",
+                "=hp50=hp-",
+                "#S#E",
+                "B1;B3;B2;BEEP;RAND;VB;",
+                "BUILD;DIGG;HEAL;MINE;",
+                "AUT+AUT-AGR+AGR-",
+                "ANDOR",
+                "CCW;CW;",
+                "FLIP;",
+                "FILL;",
+                "<|"
+            );
             // expected_program
             let mut expected_program = Program::default();
             //     returns
@@ -609,8 +815,35 @@ mod tests {
             //     start & end
             expected_program[57] = Instruction::new_simple(InstructionId::Start).unwrap();
             expected_program[58] = Instruction::new_simple(InstructionId::End).unwrap();
+            //     actions
+            expected_program[59] = Instruction::new_simple(InstructionId::ActionB1).unwrap();
+            expected_program[60] = Instruction::new_simple(InstructionId::ActionB2).unwrap();
+            expected_program[61] = Instruction::new_simple(InstructionId::ActionB3).unwrap();
+            expected_program[62] = Instruction::new_simple(InstructionId::ActionBibika).unwrap();
+            expected_program[63] = Instruction::new_simple(InstructionId::ActionRandom).unwrap();
+            expected_program[64] = Instruction::new_simple(InstructionId::ActionWb).unwrap();
+            //     std
+            expected_program[65] = Instruction::new_simple(InstructionId::StdBuild).unwrap();
+            expected_program[66] = Instruction::new_simple(InstructionId::StdDigg).unwrap();
+            expected_program[67] = Instruction::new_simple(InstructionId::StdHeal).unwrap();
+            expected_program[68] = Instruction::new_simple(InstructionId::StdMine).unwrap();
+            //     mode
+            expected_program[69] = Instruction::new_simple(InstructionId::ModeAutodiggOn).unwrap();
+            expected_program[70] = Instruction::new_simple(InstructionId::ModeAutodiggOff).unwrap();
+            expected_program[71] = Instruction::new_simple(InstructionId::ModeAgrOn).unwrap();
+            expected_program[72] = Instruction::new_simple(InstructionId::ModeAgrOff).unwrap();
+            //     bool_mode
+            expected_program[73] = Instruction::new_simple(InstructionId::BoolModeAnd).unwrap();
+            expected_program[74] = Instruction::new_simple(InstructionId::BoolModeOr).unwrap();
+            //     rotates
+            expected_program[75] = Instruction::new_simple(InstructionId::RotateCcw).unwrap();
+            expected_program[76] = Instruction::new_simple(InstructionId::RotateCw).unwrap();
+            //     prog_flip
+            expected_program[77] = Instruction::new_simple(InstructionId::ProgFlip).unwrap();
+            //     fill_gun
+            expected_program[78] = Instruction::new_simple(InstructionId::FillGun).unwrap();
             //     for tail check
-            expected_program[59] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[79] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
