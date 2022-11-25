@@ -115,7 +115,7 @@ pub enum InstructionId {
     CellS = 37,
 
     BoolModeOr = 38,
-    BoolModeAns = 39,
+    BoolModeAnd = 39,
 
     Label = 40,
 
