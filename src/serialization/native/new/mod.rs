@@ -228,7 +228,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     // Instructions
                     '!' => match self.get_next_char()? {
                         '?' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['<'], 2)?;
                             Ok(Instruction::new_label(InstructionId::IfGoTo, literal)
                                 .unwrap()
                                 .into())
@@ -238,7 +239,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '#' => match self.get_next_char()? {
                         'E' => Ok(Instruction::new_simple(InstructionId::End).unwrap().into()),
                         'R' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['<'], 2)?;
                             Ok(Instruction::new_label(InstructionId::OnResp, literal)
                                 .unwrap()
                                 .into())
@@ -251,7 +253,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     ',' => Ok(Instruction::new_simple(InstructionId::Back).unwrap().into()),
                     '-' => match self.get_next_char()? {
                         '>' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                             Ok(Instruction::new_label(InstructionId::GoSub1, literal)
                                 .unwrap()
                                 .into())
@@ -260,7 +263,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     },
                     ':' => match self.get_next_char()? {
                         '>' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                             Ok(Instruction::new_label(InstructionId::GoSub, literal)
                                 .unwrap()
                                 .into())
@@ -270,13 +274,15 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '<' => Ok(self.parse_less_than_sign()?.into()),
                     '=' => Ok(self.parse_equals_sign()?.into()),
                     '>' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>('|', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&['|'], 1)?;
                         Ok(Instruction::new_label(InstructionId::GoTo, literal)
                             .unwrap()
                             .into())
                     }
                     '?' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&['<'], 1)?;
                         Ok(Instruction::new_label(InstructionId::IfNotGoTo, literal)
                             .unwrap()
                             .into())
@@ -335,7 +341,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         .into()),
                     'z' => Ok(Instruction::new_simple(InstructionId::Digg).unwrap().into()),
                     '|' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>(':', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&[':'], 1)?;
                         Ok(Instruction::new_label(InstructionId::Label, literal)
                             .unwrap()
                             .into())
@@ -367,19 +374,21 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     }
     fn parse_literal<L: Literal>(
         &mut self,
-        next_char: char,
+        possible_next_chars: &[char],
         offset: usize,
-    ) -> Result<L, ParseNextErrors> {
+    ) -> Result<(L, char), ParseNextErrors> {
         let literal = Literal::new_from_enumerate(&mut self.enumeration);
         match literal {
-            (literal, Some((next_index, c))) if c == next_char => {
+            (literal, Some((next_index, next_char)))
+                if possible_next_chars.contains(&next_char) =>
+            {
                 if next_index > self.index + offset + L::MAX_CHAR_LEN {
                     Err(LiteralIsTooLong {
                         literal_index: self.index + offset,
                     }
                     .into())
                 } else {
-                    Ok(literal)
+                    Ok((literal, next_char))
                 }
             }
             (_, Some((_, _)) | None) => Err(UnknownInstruction { index: self.index }.into()),
@@ -402,7 +411,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     fn parse_equals_sign(&mut self) -> Result<Instruction, ParseNextErrors> {
         match self.get_next_char()? {
             '>' => {
-                let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                let (literal, _) = self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                 Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
             }
             'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
