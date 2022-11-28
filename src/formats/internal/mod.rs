@@ -316,6 +316,28 @@ impl Instruction {
             _ => Err(UnsupportedInstructionId {}),
         }
     }
+    /// Constructs a new instruction of the [`VarCmp`](InstructionKind::VarCmp) kind with the given
+    /// `instruction_id`.
+    ///
+    /// # Errors
+    /// If the given `instruction_id` is not appropriate to the [`VarCmp`](InstructionKind::VarCmp)
+    /// kind an [`UnsupportedInstructionId`] will be returned.
+    pub fn new_var_cmp(
+        instruction_id: InstructionId,
+        identifier: VariableIdentifierLiteral,
+        value: VariableValueLiteral,
+    ) -> Result<Self, UnsupportedInstructionId> {
+        match instruction_id.kind() {
+            InstructionKind::VarCmp => Ok(Instruction {
+                id: instruction_id,
+                data: InstructionData::VarCmp(VarCmpInstructionData {
+                    variable_identifier: identifier,
+                    variable_value: value,
+                }),
+            }),
+            _ => Err(UnsupportedInstructionId {}),
+        }
+    }
     /// Returns the [instruction id](InstructionId).
     pub fn id(&self) -> InstructionId {
         self.id
