@@ -5,7 +5,9 @@
 
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
-use crate::formats::internal::literals::{LabelIdentifierLiteral, Literal};
+use crate::formats::internal::literals::{
+    LabelIdentifierLiteral, Literal, VariableIdentifierLiteral, VariableValueLiteral,
+};
 use crate::formats::internal::{
     Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
 };
@@ -250,6 +252,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             .into()),
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
+                    '(' => Ok(self.parse_left_parenthesis()?.into()),
                     ',' => Ok(Instruction::new_simple(InstructionId::Back).unwrap().into()),
                     '-' => match self.get_next_char()? {
                         '>' => {
@@ -392,6 +395,20 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 }
             }
             (_, Some((_, _)) | None) => Err(UnknownInstruction { index: self.index }.into()),
+        }
+    }
+    fn parse_left_parenthesis(&mut self) -> Result<Instruction, ParseNextErrors> {
+        let (identifier, next_char) =
+            self.parse_literal::<VariableIdentifierLiteral>(&['=', '<', '>'], 1)?;
+        let (value, _) =
+            self.parse_literal::<VariableValueLiteral>(&[')'], 1 + identifier.len() + 1)?;
+        match next_char {
+            '<' => Ok(Instruction::new_var_cmp(InstructionId::VarLess, identifier, value).unwrap()),
+            '=' => {
+                Ok(Instruction::new_var_cmp(InstructionId::VarEqual, identifier, value).unwrap())
+            }
+            '>' => Ok(Instruction::new_var_cmp(InstructionId::VarMore, identifier, value).unwrap()),
+            _ => unreachable!(),
         }
     }
     fn parse_less_than_sign(&mut self) -> Result<Instruction, UnknownInstruction> {
@@ -707,7 +724,9 @@ mod tests {
             DeserializeErrors, IllegalMagicError, MagicNotFoundError, TextFormatDeserializer,
         };
 
-        use crate::formats::internal::literals::LabelIdentifierLiteral;
+        use crate::formats::internal::literals::{
+            LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+        };
         use crate::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
         #[test]
@@ -882,7 +901,14 @@ mod tests {
 
         #[test]
         fn deserialize_literals() {
-            let s = "$|:|hi:|012:>abc|:>zxc>->s12>=>sbf>!?if<?ifn<#Rrsp<";
+            let s = concat!(
+                "$",
+                "|:|hi:|012:",
+                ">abc|:>zxc>->s12>=>sbf>",
+                "!?if<?ifn<",
+                "#Rrsp<",
+                "(va0<0)(a=99999)(va2>-5)"
+            );
             // expected_program
             let mut expected_program = Program::default();
             //     labels
@@ -938,6 +964,25 @@ mod tests {
             expected_program[9] = Instruction::new_label(
                 InstructionId::OnResp,
                 LabelIdentifierLiteral::new_from_array([b'r', b's', b'p', 0]).unwrap(),
+            )
+            .unwrap();
+            //         var_cmp
+            expected_program[10] = Instruction::new_var_cmp(
+                InstructionId::VarLess,
+                VariableIdentifierLiteral::new_from_array([b'v', b'a', b'0', 0]).unwrap(),
+                VariableValueLiteral::new_from_value(0).unwrap(),
+            )
+            .unwrap();
+            expected_program[11] = Instruction::new_var_cmp(
+                InstructionId::VarEqual,
+                VariableIdentifierLiteral::new_from_array([b'a', 0, 0, 0]).unwrap(),
+                VariableValueLiteral::new_from_value(99999).unwrap(),
+            )
+            .unwrap();
+            expected_program[12] = Instruction::new_var_cmp(
+                InstructionId::VarMore,
+                VariableIdentifierLiteral::new_from_array([b'v', b'a', b'2', 0]).unwrap(),
+                VariableValueLiteral::new_from_value(-5).unwrap(),
             )
             .unwrap();
             // actual_program
