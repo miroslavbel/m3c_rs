@@ -81,6 +81,10 @@ impl LabelIdentifierLiteral {
             data: internal_data,
         })
     }
+    /// Returns the length of this literal.
+    pub fn len(&self) -> usize {
+        self.data.iter().position(|&b| b == 0).unwrap()
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -147,6 +151,10 @@ impl StringLiteral {
             data: internal_data,
         })
     }
+    /// Returns the length of this literal.
+    pub fn len(&self) -> usize {
+        self.data.iter().position(|&b| b == 0).unwrap()
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -212,6 +220,10 @@ impl VariableIdentifierLiteral {
         Ok(Self {
             data: internal_data,
         })
+    }
+    /// Returns the length of this literal.
+    pub fn len(&self) -> usize {
+        self.data.iter().position(|&b| b == 0).unwrap()
     }
     /// Returns the underlying data.
     ///
