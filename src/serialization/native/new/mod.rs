@@ -5,7 +5,9 @@
 
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
-use crate::formats::internal::literals::{LabelIdentifierLiteral, Literal};
+use crate::formats::internal::literals::{
+    LabelIdentifierLiteral, Literal, VariableIdentifierLiteral, VariableValueLiteral,
+};
 use crate::formats::internal::{
     Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
 };
@@ -228,7 +230,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     // Instructions
                     '!' => match self.get_next_char()? {
                         '?' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['<'], 2)?;
                             Ok(Instruction::new_label(InstructionId::IfGoTo, literal)
                                 .unwrap()
                                 .into())
@@ -238,7 +241,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '#' => match self.get_next_char()? {
                         'E' => Ok(Instruction::new_simple(InstructionId::End).unwrap().into()),
                         'R' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['<'], 2)?;
                             Ok(Instruction::new_label(InstructionId::OnResp, literal)
                                 .unwrap()
                                 .into())
@@ -248,10 +252,12 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                             .into()),
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
+                    '(' => Ok(self.parse_left_parenthesis()?.into()),
                     ',' => Ok(Instruction::new_simple(InstructionId::Back).unwrap().into()),
                     '-' => match self.get_next_char()? {
                         '>' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                             Ok(Instruction::new_label(InstructionId::GoSub1, literal)
                                 .unwrap()
                                 .into())
@@ -260,7 +266,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     },
                     ':' => match self.get_next_char()? {
                         '>' => {
-                            let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                            let (literal, _) =
+                                self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                             Ok(Instruction::new_label(InstructionId::GoSub, literal)
                                 .unwrap()
                                 .into())
@@ -270,13 +277,15 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     '<' => Ok(self.parse_less_than_sign()?.into()),
                     '=' => Ok(self.parse_equals_sign()?.into()),
                     '>' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>('|', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&['|'], 1)?;
                         Ok(Instruction::new_label(InstructionId::GoTo, literal)
                             .unwrap()
                             .into())
                     }
                     '?' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>('<', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&['<'], 1)?;
                         Ok(Instruction::new_label(InstructionId::IfNotGoTo, literal)
                             .unwrap()
                             .into())
@@ -335,7 +344,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         .into()),
                     'z' => Ok(Instruction::new_simple(InstructionId::Digg).unwrap().into()),
                     '|' => {
-                        let literal = self.parse_literal::<LabelIdentifierLiteral>(':', 1)?;
+                        let (literal, _) =
+                            self.parse_literal::<LabelIdentifierLiteral>(&[':'], 1)?;
                         Ok(Instruction::new_label(InstructionId::Label, literal)
                             .unwrap()
                             .into())
@@ -367,22 +377,38 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     }
     fn parse_literal<L: Literal>(
         &mut self,
-        next_char: char,
+        possible_next_chars: &[char],
         offset: usize,
-    ) -> Result<L, ParseNextErrors> {
+    ) -> Result<(L, char), ParseNextErrors> {
         let literal = Literal::new_from_enumerate(&mut self.enumeration);
         match literal {
-            (literal, Some((next_index, c))) if c == next_char => {
+            (literal, Some((next_index, next_char)))
+                if possible_next_chars.contains(&next_char) =>
+            {
                 if next_index > self.index + offset + L::MAX_CHAR_LEN {
                     Err(LiteralIsTooLong {
                         literal_index: self.index + offset,
                     }
                     .into())
                 } else {
-                    Ok(literal)
+                    Ok((literal, next_char))
                 }
             }
             (_, Some((_, _)) | None) => Err(UnknownInstruction { index: self.index }.into()),
+        }
+    }
+    fn parse_left_parenthesis(&mut self) -> Result<Instruction, ParseNextErrors> {
+        let (identifier, next_char) =
+            self.parse_literal::<VariableIdentifierLiteral>(&['=', '<', '>'], 1)?;
+        let (value, _) =
+            self.parse_literal::<VariableValueLiteral>(&[')'], 1 + identifier.len() + 1)?;
+        match next_char {
+            '<' => Ok(Instruction::new_var_cmp(InstructionId::VarLess, identifier, value).unwrap()),
+            '=' => {
+                Ok(Instruction::new_var_cmp(InstructionId::VarEqual, identifier, value).unwrap())
+            }
+            '>' => Ok(Instruction::new_var_cmp(InstructionId::VarMore, identifier, value).unwrap()),
+            _ => unreachable!(),
         }
     }
     fn parse_less_than_sign(&mut self) -> Result<Instruction, UnknownInstruction> {
@@ -402,7 +428,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     fn parse_equals_sign(&mut self) -> Result<Instruction, ParseNextErrors> {
         match self.get_next_char()? {
             '>' => {
-                let literal = self.parse_literal::<LabelIdentifierLiteral>('>', 2)?;
+                let (literal, _) = self.parse_literal::<LabelIdentifierLiteral>(&['>'], 2)?;
                 Ok(Instruction::new_label(InstructionId::GoSubF, literal).unwrap())
             }
             'A' => Ok(Instruction::new_simple(InstructionId::CcAcid).unwrap()),
@@ -698,7 +724,9 @@ mod tests {
             DeserializeErrors, IllegalMagicError, MagicNotFoundError, TextFormatDeserializer,
         };
 
-        use crate::formats::internal::literals::LabelIdentifierLiteral;
+        use crate::formats::internal::literals::{
+            LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+        };
         use crate::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
         #[test]
@@ -873,7 +901,14 @@ mod tests {
 
         #[test]
         fn deserialize_literals() {
-            let s = "$|:|hi:|012:>abc|:>zxc>->s12>=>sbf>!?if<?ifn<#Rrsp<";
+            let s = concat!(
+                "$",
+                "|:|hi:|012:",
+                ">abc|:>zxc>->s12>=>sbf>",
+                "!?if<?ifn<",
+                "#Rrsp<",
+                "(va0<0)(a=99999)(va2>-5)"
+            );
             // expected_program
             let mut expected_program = Program::default();
             //     labels
@@ -929,6 +964,25 @@ mod tests {
             expected_program[9] = Instruction::new_label(
                 InstructionId::OnResp,
                 LabelIdentifierLiteral::new_from_array([b'r', b's', b'p', 0]).unwrap(),
+            )
+            .unwrap();
+            //         var_cmp
+            expected_program[10] = Instruction::new_var_cmp(
+                InstructionId::VarLess,
+                VariableIdentifierLiteral::new_from_array([b'v', b'a', b'0', 0]).unwrap(),
+                VariableValueLiteral::new_from_value(0).unwrap(),
+            )
+            .unwrap();
+            expected_program[11] = Instruction::new_var_cmp(
+                InstructionId::VarEqual,
+                VariableIdentifierLiteral::new_from_array([b'a', 0, 0, 0]).unwrap(),
+                VariableValueLiteral::new_from_value(99999).unwrap(),
+            )
+            .unwrap();
+            expected_program[12] = Instruction::new_var_cmp(
+                InstructionId::VarMore,
+                VariableIdentifierLiteral::new_from_array([b'v', b'a', b'2', 0]).unwrap(),
+                VariableValueLiteral::new_from_value(-5).unwrap(),
             )
             .unwrap();
             // actual_program
