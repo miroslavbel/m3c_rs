@@ -451,6 +451,19 @@ impl InstructionPosition {
             Ok(())
         }
     }
+    /// Moves this [`InstructionPosition`] 3 steps forward within one row.
+    ///
+    /// # Errors
+    ///
+    /// If it is not possible to perform this operation within one row, an
+    /// [`InstructionPositionOverflowError`] will be returned.
+    pub fn move_three_steps_forward(&mut self) -> Result<(), InstructionPositionOverflowError> {
+        if (self.column as usize) < Program::INSTRUCTIONS_PER_ROW - 3 {
+            self.column += 3;
+            return Ok(());
+        }
+        Err(InstructionPositionOverflowError {})
+    }
 }
 
 impl Default for InstructionPosition {
