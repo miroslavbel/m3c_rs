@@ -150,6 +150,8 @@ impl From<InstructionPositionOverflowError> for DeserializeErrors {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Command {
+    OneStepForward,
+    ThreeStepsForward,
     GoToNextRow,
     GoToNextPage,
 }
@@ -205,6 +207,14 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     continue;
                 }
                 Some(InstructionOrCommand::Command(command)) => match command {
+                    Command::OneStepForward => {
+                        self.position.move_forward()?;
+                        continue;
+                    }
+                    Command::ThreeStepsForward => {
+                        self.position.move_three_steps_forward()?;
+                        continue;
+                    }
                     Command::GoToNextRow => {
                         self.position.move_to_next_row()?;
                         continue;
@@ -225,6 +235,8 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 self.index = index;
                 match first_char {
                     // Commands
+                    ' ' => Ok(Command::OneStepForward.into()),
+                    '_' => Ok(Command::ThreeStepsForward.into()),
                     '\n' => Ok(Command::GoToNextRow.into()),
                     '~' => Ok(Command::GoToNextPage.into()),
                     // Instructions
@@ -882,7 +894,7 @@ mod tests {
 
         #[test]
         fn deserialize_commands() {
-            let s = "$^W\n^A~^D";
+            let s = "$^W\n^A~^D_^F ^S";
             // expected_program
             let mut expected_program = Program::default();
             expected_program[InstructionPosition::new(0, 0, 0).unwrap()] =
@@ -891,6 +903,10 @@ mod tests {
                 Instruction::new_simple(InstructionId::MoveA).unwrap();
             expected_program[InstructionPosition::new(1, 0, 0).unwrap()] =
                 Instruction::new_simple(InstructionId::MoveD).unwrap();
+            expected_program[InstructionPosition::new(1, 0, 4).unwrap()] =
+                Instruction::new_simple(InstructionId::MoveF).unwrap();
+            expected_program[InstructionPosition::new(1, 0, 6).unwrap()] =
+                Instruction::new_simple(InstructionId::MoveS).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);
