@@ -5,5 +5,7 @@
 //!
 //! Available submodules:
 //! * [native] - serializers and deserializers for native formats.
+//! * [custom] - serializers and deserializers for custom formats.
 
+pub mod custom;
 pub mod native;
