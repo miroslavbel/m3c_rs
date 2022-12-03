@@ -236,6 +236,9 @@ impl Default for InstructionId {
 /// Instructions' kind by containing (or not) additional info (except the [`InstructionId`]).
 ///
 /// Each instruction refers to one of these kind.
+///
+/// To get a kind of [`Instruction`] see the [`Instruction::kind`] method. To get a kind of
+/// [`InstructionId`] see the [`InstructionId::kind`] method.
 pub enum InstructionKind {
     /// Instructions of this kind don't contain any additional info.
     Simple,
@@ -259,17 +262,14 @@ impl From<InstructionId> for InstructionKind {
 
 // region: instruction
 
+/// A struct for storing instruction's data.
+///
+/// See also the [`InstructionKind`].
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct VarCmpInstructionData {
-    variable_identifier: VariableIdentifierLiteral,
-    variable_value: VariableValueLiteral,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum InstructionData {
+pub enum InstructionData {
     Simple,
     Label(LabelIdentifierLiteral),
-    VarCmp(VarCmpInstructionData),
+    VarCmp((VariableIdentifierLiteral, VariableValueLiteral)),
     String(StringLiteral),
 }
 
@@ -330,10 +330,7 @@ impl Instruction {
         match instruction_id.kind() {
             InstructionKind::VarCmp => Ok(Instruction {
                 id: instruction_id,
-                data: InstructionData::VarCmp(VarCmpInstructionData {
-                    variable_identifier: identifier,
-                    variable_value: value,
-                }),
+                data: InstructionData::VarCmp((identifier, value)),
             }),
             _ => Err(UnsupportedInstructionId {}),
         }
@@ -345,6 +342,10 @@ impl Instruction {
     /// Returns the [instruction kind](InstructionKind).
     pub fn kind(&self) -> InstructionKind {
         self.id.kind()
+    }
+    /// Returns the [instruction data](`InstructionData`).
+    pub fn data(&self) -> InstructionData {
+        self.data
     }
 }
 
