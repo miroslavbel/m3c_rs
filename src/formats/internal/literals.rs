@@ -1,6 +1,6 @@
 //! Raw literals.
 
-use std::{error::Error, fmt, iter::Enumerate, str::Chars};
+use std::{error::Error, fmt, iter::Enumerate, str, str::Chars};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct IllegalCharError {
@@ -45,6 +45,10 @@ pub trait Literal {
     fn new_from_enumerate(enumerate: &mut Enumerate<Chars>) -> (Self, Option<(usize, char)>)
     where
         Self: Sized;
+    /// Dumps this literal to a new `String`.
+    fn dumps(&self) -> String;
+    /// Dumps this literal to the given `String`.
+    fn dumps_to(&self, s: &mut String);
 }
 
 /// Label identifier literal.
@@ -114,6 +118,12 @@ impl Literal for LabelIdentifierLiteral {
                 }
             }
         }
+    }
+    fn dumps(&self) -> String {
+        str::from_utf8(&self.data).unwrap().to_string()
+    }
+    fn dumps_to(&self, s: &mut String) {
+        s.push_str(str::from_utf8(&self.data).unwrap());
     }
 }
 
@@ -185,6 +195,12 @@ impl Literal for StringLiteral {
             }
         }
     }
+    fn dumps(&self) -> String {
+        str::from_utf8(&self.data).unwrap().to_string()
+    }
+    fn dumps_to(&self, s: &mut String) {
+        s.push_str(str::from_utf8(&self.data).unwrap());
+    }
 }
 
 /// Variable identifier literal.
@@ -255,6 +271,12 @@ impl Literal for VariableIdentifierLiteral {
             }
         }
     }
+    fn dumps(&self) -> String {
+        str::from_utf8(&self.data).unwrap().to_string()
+    }
+    fn dumps_to(&self, s: &mut String) {
+        s.push_str(str::from_utf8(&self.data).unwrap());
+    }
 }
 
 /// Variable value literal.
@@ -324,6 +346,12 @@ impl Literal for VariableValueLiteral {
             },
             next_char,
         )
+    }
+    fn dumps(&self) -> String {
+        self.data.to_string()
+    }
+    fn dumps_to(&self, s: &mut String) {
+        s.push_str(self.data.to_string().as_str());
     }
 }
 
