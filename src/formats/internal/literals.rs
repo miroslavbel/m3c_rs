@@ -89,6 +89,11 @@ impl LabelIdentifierLiteral {
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
     }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -165,6 +170,11 @@ impl StringLiteral {
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
     }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -240,6 +250,11 @@ impl VariableIdentifierLiteral {
     /// Returns the length of this literal.
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
+    }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
     }
     /// Returns the underlying data.
     ///
