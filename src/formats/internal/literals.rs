@@ -128,7 +128,9 @@ impl Literal for LabelIdentifierLiteral {
         str::from_utf8(&self.data).unwrap().to_string()
     }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
@@ -209,7 +211,9 @@ impl Literal for StringLiteral {
         str::from_utf8(&self.data).unwrap().to_string()
     }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
@@ -290,7 +294,9 @@ impl Literal for VariableIdentifierLiteral {
         str::from_utf8(&self.data).unwrap().to_string()
     }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
