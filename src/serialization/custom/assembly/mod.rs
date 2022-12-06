@@ -3,7 +3,7 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
-use crate::formats::internal::InstructionId;
+use crate::formats::internal::{literals::Literal, Instruction, InstructionData, InstructionId};
 
 static FULLY_EMPTY_STRING: &str = "";
 
@@ -201,9 +201,53 @@ impl InstructionId {
     }
 }
 
+impl Instruction {
+    /// Dumps this instruction to the given `String`.
+    ///
+    /// The returned string will be prefixed by the given `indent` if this instruction
+    /// [id](InstructionId) is not equal to [`Label`](InstructionId::Label).
+    fn dumps_to(&self, s: &mut String, indent: &str) {
+        let id = self.id();
+        let data = self.data();
+        if id == InstructionId::Label {
+            match data {
+                InstructionData::Label(label) => {
+                    label.dumps_to(s);
+                    s.push(':');
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            s.push_str(indent);
+            s.push_str(id.client_identifier());
+            match data {
+                InstructionData::Simple => {}
+                InstructionData::Label(label) => {
+                    s.push(' ');
+                    label.dumps_to(s);
+                }
+                InstructionData::String(string_literal) => {
+                    s.push_str(" '");
+                    string_literal.dumps_to(s);
+                    s.push('\'');
+                }
+                InstructionData::VarCmp((identifier, value)) => {
+                    s.push(' ');
+                    identifier.dumps_to(s);
+                    s.push_str(", ");
+                    value.dumps_to(s);
+                }
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::formats::internal::InstructionId;
+    use crate::formats::internal::literals::{
+        LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+    };
+    use crate::formats::internal::{Instruction, InstructionId};
 
     #[test]
     fn instruction_id_client_identifier() {
@@ -236,5 +280,70 @@ mod tests {
             InstructionId::CellRightHand.client_identifier()
         );
         assert_eq!("DEBUG_SET", InstructionId::DebugSet.client_identifier());
+    }
+
+    #[test]
+    fn instruction_dumps_to() {
+        let mut s = String::new();
+        let indent = "    ";
+
+        Instruction::new_simple(InstructionId::MoveA)
+            .unwrap()
+            .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_label(
+            InstructionId::Label,
+            LabelIdentifierLiteral::new_from_array([b'l', b'a', b'b', 0]).unwrap(),
+        )
+        .unwrap()
+        .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_simple(InstructionId::MoveW)
+            .unwrap()
+            .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_label(
+            InstructionId::Label,
+            LabelIdentifierLiteral::new_from_array([0, 0, 0, 0]).unwrap(),
+        )
+        .unwrap()
+        .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_simple(InstructionId::CcCrystall)
+            .unwrap()
+            .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_label(
+            InstructionId::IfGoTo,
+            LabelIdentifierLiteral::new_from_array([b'l', b'a', b'b', 0]).unwrap(),
+        )
+        .unwrap()
+        .dumps_to(&mut s, indent);
+        s.push('\n');
+        Instruction::new_var_cmp(
+            InstructionId::VarLess,
+            VariableIdentifierLiteral::new_from_array([b'x', 0, 0, 0]).unwrap(),
+            VariableValueLiteral::new_from_value(42).unwrap(),
+        )
+        .unwrap()
+        .dumps_to(&mut s, indent);
+        s.push('\n');
+        // TODO check string kind too
+        assert_eq!(
+            format_args!(
+                concat!(
+                    "{indent}MOVE_A\n",
+                    "lab:\n",
+                    "{indent}MOVE_W\n",
+                    ":\n",
+                    "{indent}CC_CRYSTALL\n",
+                    "{indent}IF_GOTO lab\n",
+                    "{indent}VAR_LESS x, 42\n",
+                ),
+                indent = indent
+            )
+            .to_string(),
+            s
+        );
     }
 }

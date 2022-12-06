@@ -45,8 +45,6 @@ pub trait Literal {
     fn new_from_enumerate(enumerate: &mut Enumerate<Chars>) -> (Self, Option<(usize, char)>)
     where
         Self: Sized;
-    /// Dumps this literal to a new `String`.
-    fn dumps(&self) -> String;
     /// Dumps this literal to the given `String`.
     fn dumps_to(&self, s: &mut String);
 }
@@ -89,6 +87,11 @@ impl LabelIdentifierLiteral {
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
     }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -119,11 +122,10 @@ impl Literal for LabelIdentifierLiteral {
             }
         }
     }
-    fn dumps(&self) -> String {
-        str::from_utf8(&self.data).unwrap().to_string()
-    }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
@@ -165,6 +167,11 @@ impl StringLiteral {
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
     }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -195,11 +202,10 @@ impl Literal for StringLiteral {
             }
         }
     }
-    fn dumps(&self) -> String {
-        str::from_utf8(&self.data).unwrap().to_string()
-    }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
@@ -241,6 +247,11 @@ impl VariableIdentifierLiteral {
     pub fn len(&self) -> usize {
         self.data.iter().position(|&b| b == 0).unwrap()
     }
+    /// Checks if this literal is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.data[0] == 0
+    }
     /// Returns the underlying data.
     ///
     /// The last element of the array is always zero.
@@ -271,11 +282,10 @@ impl Literal for VariableIdentifierLiteral {
             }
         }
     }
-    fn dumps(&self) -> String {
-        str::from_utf8(&self.data).unwrap().to_string()
-    }
     fn dumps_to(&self, s: &mut String) {
-        s.push_str(str::from_utf8(&self.data).unwrap());
+        if !self.is_empty() {
+            s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
+        }
     }
 }
 
@@ -346,9 +356,6 @@ impl Literal for VariableValueLiteral {
             },
             next_char,
         )
-    }
-    fn dumps(&self) -> String {
-        self.data.to_string()
     }
     fn dumps_to(&self, s: &mut String) {
         s.push_str(self.data.to_string().as_str());
