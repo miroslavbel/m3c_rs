@@ -8,6 +8,7 @@ use literals::{
 use std::error::Error;
 use std::fmt;
 use std::ops::{Index, IndexMut};
+use std::slice;
 
 // region: errors
 
@@ -480,6 +481,31 @@ impl Default for InstructionPosition {
 
 // endregion: instruction_position
 
+/// An iterator over the [`Instruction`]s and their [position](InstructionPosition)s in
+/// the [`Program`].
+#[derive(Clone, Debug)]
+pub struct InstructionPositions<'a> {
+    position: InstructionPosition,
+    iter: slice::Iter<'a, Instruction>,
+}
+
+impl<'a> Iterator for InstructionPositions<'a> {
+    type Item = (InstructionPosition, Instruction);
+    fn next(&mut self) -> Option<(InstructionPosition, Instruction)> {
+        match self.iter.next() {
+            None => None,
+            Some(instruction) => {
+                let position = self.position;
+                _ = self.position.move_forward();
+                Some((position, *instruction))
+            }
+        }
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
+}
+
 // region: program
 
 /// Raw program representation.
@@ -506,6 +532,19 @@ impl Program {
     /// Resets all instructions of this [`Program`] to [`InstructionId::Empty`].
     pub fn reset(&mut self) {
         self.instructions.fill(Instruction::default());
+    }
+    /// Returns an iterator over the [`Instruction`]s and their [position](InstructionPosition)s in
+    /// the [`Program`]
+    ///
+    /// The iterator yields tuples. The [`InstructionPosition`] is first, the [`Instruction`] is
+    /// second.
+    #[must_use]
+    pub fn instruction_positions(&self) -> InstructionPositions {
+        // see https://doc.rust-lang.org/std/primitive.str.html#method.char_indices
+        InstructionPositions {
+            position: InstructionPosition::default(),
+            iter: self.instructions.iter(),
+        }
     }
 }
 
