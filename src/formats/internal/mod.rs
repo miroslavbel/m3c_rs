@@ -534,7 +534,7 @@ impl Program {
         self.instructions.fill(Instruction::default());
     }
     /// Returns an iterator over the [`Instruction`]s and their [position](InstructionPosition)s in
-    /// the [`Program`]
+    /// the [`Program`].
     ///
     /// The iterator yields tuples. The [`InstructionPosition`] is first, the [`Instruction`] is
     /// second.
