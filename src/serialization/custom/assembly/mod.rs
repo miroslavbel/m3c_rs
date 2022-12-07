@@ -3,7 +3,9 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
-use crate::formats::internal::{literals::Literal, Instruction, InstructionData, InstructionId};
+use crate::formats::internal::{
+    literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition,
+};
 
 static FULLY_EMPTY_STRING: &str = "";
 
@@ -242,12 +244,37 @@ impl Instruction {
     }
 }
 
+impl InstructionPosition {
+    /// Dumps this position to the given `String`.
+    fn dumps_to(self, s: &mut String, hide_column: bool) {
+        let page = self.page();
+        let row = self.row();
+        if page < 10 {
+            s.push(' ');
+        }
+        s.push_str(page.to_string().as_str());
+        s.push(':');
+        if row < 10 {
+            s.push(' ');
+        }
+        s.push_str(row.to_string().as_str());
+        if !hide_column {
+            let column = self.column();
+            s.push(':');
+            if column < 10 {
+                s.push(' ');
+            }
+            s.push_str(column.to_string().as_str());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::formats::internal::literals::{
         LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
     };
-    use crate::formats::internal::{Instruction, InstructionId};
+    use crate::formats::internal::{Instruction, InstructionId, InstructionPosition};
 
     #[test]
     fn instruction_id_client_identifier() {
@@ -345,5 +372,19 @@ mod tests {
             .to_string(),
             s
         );
+    }
+
+    #[test]
+    fn instruction_position_dumps_to() {
+        let mut s = String::new();
+
+        let ip1 = InstructionPosition::new(1, 2, 3).unwrap();
+        let ip2 = InstructionPosition::new(10, 11, 12).unwrap();
+
+        ip1.dumps_to(&mut s, false);
+        ip2.dumps_to(&mut s, false);
+        ip2.dumps_to(&mut s, true);
+
+        assert_eq!(concat!(" 1: 2: 3", "10:11:12", "10:11"), s);
     }
 }
