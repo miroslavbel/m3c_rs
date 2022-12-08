@@ -49,14 +49,14 @@ pub trait Literal {
     fn dumps_to(&self, s: &mut String);
     /// Writes this literal to the given `writer`.
     ///
-    /// Internally uses the [`write_all`] method.
+    /// Internally uses the `writer`'s [`write_all`] method.
     ///
     /// # Errors
     ///
     /// See the [`write_all`]'s `Errors` sections.
     ///
     /// [`write_all`]: io::Write::write_all
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write;
 }
@@ -139,7 +139,7 @@ impl Literal for LabelIdentifierLiteral {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
     }
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write,
     {
@@ -228,7 +228,7 @@ impl Literal for StringLiteral {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
     }
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write,
     {
@@ -317,7 +317,7 @@ impl Literal for VariableIdentifierLiteral {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
     }
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write,
     {
@@ -399,7 +399,7 @@ impl Literal for VariableValueLiteral {
     fn dumps_to(&self, s: &mut String) {
         s.push_str(self.data.to_string().as_str());
     }
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write,
     {

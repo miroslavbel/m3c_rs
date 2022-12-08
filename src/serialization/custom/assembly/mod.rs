@@ -205,7 +205,15 @@ impl InstructionId {
     }
     /// Writes the identifier from the native client for this [`InstructionId`] to the given
     /// `writer`.
-    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
     where
         W: io::Write,
     {
