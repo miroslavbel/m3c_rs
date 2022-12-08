@@ -3,7 +3,9 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
-use crate::formats::internal::{literals::Literal, Instruction, InstructionData, InstructionId};
+use crate::formats::internal::{
+    literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition, Program,
+};
 
 static FULLY_EMPTY_STRING: &str = "";
 
@@ -242,12 +244,88 @@ impl Instruction {
     }
 }
 
+impl InstructionPosition {
+    /// Dumps this position to the given `String`.
+    fn dumps_to(self, s: &mut String, hide_column: bool) {
+        let page = self.page();
+        let row = self.row();
+        if page < 10 {
+            s.push(' ');
+        }
+        s.push_str(page.to_string().as_str());
+        s.push(':');
+        if row < 10 {
+            s.push(' ');
+        }
+        s.push_str(row.to_string().as_str());
+        if !hide_column {
+            let column = self.column();
+            s.push(':');
+            if column < 10 {
+                s.push(' ');
+            }
+            s.push_str(column.to_string().as_str());
+        }
+    }
+}
+
+/// A structure for serializing [`Program`] into human-readable assembly-like format.
+#[derive(Debug, Clone, Copy)]
+pub struct Serializer<'p> {
+    program: &'p Program,
+}
+
+impl<'p> Serializer<'p> {
+    #[cfg(windows)]
+    const LINE_SEPARATOR: &'static str = "\r\n";
+    #[cfg(not(windows))]
+    const LINE_SEPARATOR: &'static str = "\n";
+    const NEW_PAGE_WARN: &'static str = "the new PAGE started below";
+    const NEW_ROW_WARN: &'static str = "the new ROW started below";
+    /// Creates a new [`Serializer`] from a `&Program`.
+    #[must_use]
+    pub fn new(program: &'p Program) -> Self {
+        Self { program }
+    }
+    /// Serializes to the given `String` with the given `indent`.
+    pub fn serialize_to(&self, s: &mut String, indent: &str) {
+        let mut instruction_positions = self.program.instruction_positions();
+
+        // don't write that this's beginnig of the page (and a whole program)
+        let first_elem = instruction_positions.next();
+        match first_elem {
+            Some((_, ins)) => {
+                ins.dumps_to(s, indent);
+                s.push_str(Self::LINE_SEPARATOR);
+            }
+            None => unreachable!("The program should always have the first instruction"),
+        }
+
+        for (position, instruction) in instruction_positions {
+            if position.column() == 0 {
+                s.push_str(Self::LINE_SEPARATOR);
+                s.push_str("; (");
+                position.dumps_to(s, true);
+                s.push_str(") ");
+                if position.row() == 0 {
+                    s.push_str(Self::NEW_PAGE_WARN);
+                } else {
+                    s.push_str(Self::NEW_ROW_WARN);
+                }
+                s.push_str(Self::LINE_SEPARATOR);
+            }
+            instruction.dumps_to(s, indent);
+            s.push_str(Self::LINE_SEPARATOR);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::formats::internal::literals::{
         LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
     };
-    use crate::formats::internal::{Instruction, InstructionId};
+    use crate::formats::internal::{Instruction, InstructionId, InstructionPosition};
 
     #[test]
     fn instruction_id_client_identifier() {
@@ -345,5 +423,19 @@ mod tests {
             .to_string(),
             s
         );
+    }
+
+    #[test]
+    fn instruction_position_dumps_to() {
+        let mut s = String::new();
+
+        let ip1 = InstructionPosition::new(1, 2, 3).unwrap();
+        let ip2 = InstructionPosition::new(10, 11, 12).unwrap();
+
+        ip1.dumps_to(&mut s, false);
+        ip2.dumps_to(&mut s, false);
+        ip2.dumps_to(&mut s, true);
+
+        assert_eq!(concat!(" 1: 2: 3", "10:11:12", "10:11"), s);
     }
 }
