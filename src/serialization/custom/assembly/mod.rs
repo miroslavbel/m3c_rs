@@ -3,6 +3,8 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
+use std::io;
+
 use crate::formats::internal::{
     literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition, Program,
 };
@@ -200,6 +202,14 @@ impl InstructionId {
     /// Returns the identifier from the native client for this [`InstructionId`].
     fn client_identifier(self) -> &'static str {
         INSTRUCTIONS_NAMES[self as usize]
+    }
+    /// Writes the identifier from the native client for this [`InstructionId`] to the given
+    /// `writer`.
+    fn write<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        writer.write_all(INSTRUCTIONS_NAMES[self as usize].as_bytes())
     }
 }
 
