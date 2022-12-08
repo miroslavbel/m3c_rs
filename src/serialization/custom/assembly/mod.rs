@@ -332,6 +332,51 @@ impl InstructionPosition {
             s.push_str(column.to_string().as_str());
         }
     }
+    /// Writes this position to the given `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W, hide_column: bool) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let mut buf = [b' '; 8];
+        let page = self.page();
+        let row = self.row();
+        // page
+        if page > 9 {
+            buf[0] = b'1';
+            buf[1] = page - 10 + b'0';
+        } else {
+            buf[1] = page + b'0';
+        }
+        // row
+        if row > 9 {
+            buf[3] = b'1';
+            buf[4] = row - 10 + b'0';
+        } else {
+            buf[4] = row + b'0';
+        }
+        buf[2] = b':';
+        if hide_column {
+            writer.write_all(&buf[0..5])
+        } else {
+            buf[5] = b':';
+            let column = self.column();
+            if column > 9 {
+                buf[6] = b'1';
+                buf[7] = column - 10 + b'0';
+            } else {
+                buf[7] = column + b'0';
+            }
+            writer.write_all(&buf)
+        }
+    }
 }
 
 /// A structure for serializing [`Program`] into human-readable assembly-like format.
@@ -387,6 +432,8 @@ impl<'p> Serializer<'p> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use crate::formats::internal::literals::{
         LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
     };
@@ -502,5 +549,24 @@ mod tests {
         ip2.dumps_to(&mut s, true);
 
         assert_eq!(concat!(" 1: 2: 3", "10:11:12", "10:11"), s);
+    }
+
+    #[test]
+    fn instruction_position_write_all() {
+        let mut buf = Vec::with_capacity(21);
+
+        let ip1 = InstructionPosition::new(1, 2, 3).unwrap();
+        let ip2 = InstructionPosition::new(10, 11, 12).unwrap();
+
+        ip1.write_all(&mut buf, false).unwrap();
+        buf.write_all(&[b'_']).unwrap();
+        ip2.write_all(&mut buf, false).unwrap();
+        buf.write_all(&[b'_']).unwrap();
+        ip2.write_all(&mut buf, true).unwrap();
+
+        assert_eq!(
+            concat!(" 1: 2: 3_", "10:11:12_", "10:11"),
+            String::from_utf8(buf).unwrap()
+        );
     }
 }
