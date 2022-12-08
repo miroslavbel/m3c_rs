@@ -260,6 +260,53 @@ impl Instruction {
             }
         }
     }
+    /// Writes this instruction to the given `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W, indent: &str) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let id = self.id();
+        let data = self.data();
+        if id == InstructionId::Label {
+            match data {
+                InstructionData::Label(label) => {
+                    label.write_all(writer)?;
+                    writer.write_all(&[b';'])?;
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            writer.write_all(indent.as_bytes())?;
+            id.write_all(writer)?;
+            match data {
+                InstructionData::Simple => {}
+                InstructionData::Label(label) => {
+                    writer.write_all(&[b' '])?;
+                    label.write_all(writer)?;
+                }
+                InstructionData::String(string_literal) => {
+                    writer.write_all(&[b' ', b'\''])?;
+                    string_literal.write_all(writer)?;
+                    writer.write_all(&[b'\''])?;
+                }
+                InstructionData::VarCmp((identifier, value)) => {
+                    writer.write_all(&[b' '])?;
+                    identifier.write_all(writer)?;
+                    writer.write_all(&[b',', b' '])?;
+                    value.write_all(writer)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl InstructionPosition {
