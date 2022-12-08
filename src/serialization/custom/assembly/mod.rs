@@ -4,7 +4,7 @@
 //! and deserialize into [Internal format](crate::formats::internal).
 
 use crate::formats::internal::{
-    literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition,
+    literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition, Program,
 };
 
 static FULLY_EMPTY_STRING: &str = "";
@@ -265,6 +265,57 @@ impl InstructionPosition {
                 s.push(' ');
             }
             s.push_str(column.to_string().as_str());
+        }
+    }
+}
+
+/// A structure for serializing [`Program`] into human-readable assembly-like format.
+#[derive(Debug, Clone, Copy)]
+pub struct Serializer<'p> {
+    program: &'p Program,
+}
+
+impl<'p> Serializer<'p> {
+    #[cfg(windows)]
+    const LINE_SEPARATOR: &'static str = "\r\n";
+    #[cfg(not(windows))]
+    const LINE_SEPARATOR: &'static str = "\n";
+    const NEW_PAGE_WARN: &'static str = "the new PAGE started below";
+    const NEW_ROW_WARN: &'static str = "the new ROW started below";
+    /// Creates a new [`Serializer`] from a `&Program`.
+    #[must_use]
+    pub fn new(program: &'p Program) -> Self {
+        Self { program }
+    }
+    /// Serializes to the given `String` with the given `indent`.
+    pub fn serialize_to(&self, s: &mut String, indent: &str) {
+        let mut instruction_positions = self.program.instruction_positions();
+
+        // don't write that this's beginnig of the page (and a whole program)
+        let first_elem = instruction_positions.next();
+        match first_elem {
+            Some((_, ins)) => {
+                ins.dumps_to(s, indent);
+                s.push_str(Self::LINE_SEPARATOR);
+            }
+            None => unreachable!("The program should always have the first instruction"),
+        }
+
+        for (position, instruction) in instruction_positions {
+            if position.column() == 0 {
+                s.push_str(Self::LINE_SEPARATOR);
+                s.push_str("; (");
+                position.dumps_to(s, true);
+                s.push_str(") ");
+                if position.row() == 0 {
+                    s.push_str(Self::NEW_PAGE_WARN);
+                } else {
+                    s.push_str(Self::NEW_ROW_WARN);
+                }
+                s.push_str(Self::LINE_SEPARATOR);
+            }
+            instruction.dumps_to(s, indent);
+            s.push_str(Self::LINE_SEPARATOR);
         }
     }
 }
