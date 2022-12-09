@@ -398,7 +398,7 @@ impl<'p> Serializer<'p> {
         Self { program }
     }
     /// Serializes to the given `String` with the given `indent`.
-    pub fn serialize_to(&self, s: &mut String, indent: &str) {
+    pub fn serialize_to_string(&self, s: &mut String, indent: &str) {
         let mut instruction_positions = self.program.instruction_positions();
 
         // don't write that this's beginnig of the page (and a whole program)
