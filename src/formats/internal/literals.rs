@@ -1,6 +1,6 @@
 //! Raw literals.
 
-use std::{error::Error, fmt, iter::Enumerate, str, str::Chars};
+use std::{error::Error, fmt, io, iter::Enumerate, str, str::Chars};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct IllegalCharError {
@@ -47,6 +47,18 @@ pub trait Literal {
         Self: Sized;
     /// Dumps this literal to the given `String`.
     fn dumps_to(&self, s: &mut String);
+    /// Writes this literal to the given `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write;
 }
 
 /// Label identifier literal.
@@ -126,6 +138,15 @@ impl Literal for LabelIdentifierLiteral {
         if !self.is_empty() {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
+    }
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        if !self.is_empty() {
+            return writer.write_all(&self.data[0..self.len()]);
+        }
+        Ok(())
     }
 }
 
@@ -207,6 +228,15 @@ impl Literal for StringLiteral {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
     }
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        if !self.is_empty() {
+            return writer.write_all(&self.data[0..self.len()]);
+        }
+        Ok(())
+    }
 }
 
 /// Variable identifier literal.
@@ -287,6 +317,15 @@ impl Literal for VariableIdentifierLiteral {
             s.push_str(str::from_utf8(&self.data[0..self.len()]).unwrap());
         }
     }
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        if !self.is_empty() {
+            return writer.write_all(&self.data[0..self.len()]);
+        }
+        Ok(())
+    }
 }
 
 /// Variable value literal.
@@ -359,6 +398,12 @@ impl Literal for VariableValueLiteral {
     }
     fn dumps_to(&self, s: &mut String) {
         s.push_str(self.data.to_string().as_str());
+    }
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        writer.write_all(self.data.to_string().as_bytes())
     }
 }
 

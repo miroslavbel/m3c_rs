@@ -3,6 +3,8 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
+use std::io;
+
 use crate::formats::internal::{
     literals::Literal, Instruction, InstructionData, InstructionId, InstructionPosition, Program,
 };
@@ -201,6 +203,22 @@ impl InstructionId {
     fn client_identifier(self) -> &'static str {
         INSTRUCTIONS_NAMES[self as usize]
     }
+    /// Writes the identifier from the native client for this [`InstructionId`] to the given
+    /// `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        writer.write_all(INSTRUCTIONS_NAMES[self as usize].as_bytes())
+    }
 }
 
 impl Instruction {
@@ -242,6 +260,53 @@ impl Instruction {
             }
         }
     }
+    /// Writes this instruction to the given `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W, indent: &str) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let id = self.id();
+        let data = self.data();
+        if id == InstructionId::Label {
+            match data {
+                InstructionData::Label(label) => {
+                    label.write_all(writer)?;
+                    writer.write_all(&[b';'])?;
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            writer.write_all(indent.as_bytes())?;
+            id.write_all(writer)?;
+            match data {
+                InstructionData::Simple => {}
+                InstructionData::Label(label) => {
+                    writer.write_all(&[b' '])?;
+                    label.write_all(writer)?;
+                }
+                InstructionData::String(string_literal) => {
+                    writer.write_all(&[b' ', b'\''])?;
+                    string_literal.write_all(writer)?;
+                    writer.write_all(&[b'\''])?;
+                }
+                InstructionData::VarCmp((identifier, value)) => {
+                    writer.write_all(&[b' '])?;
+                    identifier.write_all(writer)?;
+                    writer.write_all(&[b',', b' '])?;
+                    value.write_all(writer)?;
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl InstructionPosition {
@@ -267,6 +332,51 @@ impl InstructionPosition {
             s.push_str(column.to_string().as_str());
         }
     }
+    /// Writes this position to the given `writer`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    fn write_all<W>(self, writer: &mut W, hide_column: bool) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let mut buf = [b' '; 8];
+        let page = self.page();
+        let row = self.row();
+        // page
+        if page > 9 {
+            buf[0] = b'1';
+            buf[1] = page - 10 + b'0';
+        } else {
+            buf[1] = page + b'0';
+        }
+        // row
+        if row > 9 {
+            buf[3] = b'1';
+            buf[4] = row - 10 + b'0';
+        } else {
+            buf[4] = row + b'0';
+        }
+        buf[2] = b':';
+        if hide_column {
+            writer.write_all(&buf[0..5])
+        } else {
+            buf[5] = b':';
+            let column = self.column();
+            if column > 9 {
+                buf[6] = b'1';
+                buf[7] = column - 10 + b'0';
+            } else {
+                buf[7] = column + b'0';
+            }
+            writer.write_all(&buf)
+        }
+    }
 }
 
 /// A structure for serializing [`Program`] into human-readable assembly-like format.
@@ -288,7 +398,11 @@ impl<'p> Serializer<'p> {
         Self { program }
     }
     /// Serializes to the given `String` with the given `indent`.
-    pub fn serialize_to(&self, s: &mut String, indent: &str) {
+    ///
+    /// See [`serialize_to_writer`] for serialization to writer.
+    ///
+    /// [`serialize_to_writer`]: Self::serialize_to_writer
+    pub fn serialize_to_string(&self, s: &mut String, indent: &str) {
         let mut instruction_positions = self.program.instruction_positions();
 
         // don't write that this's beginnig of the page (and a whole program)
@@ -318,10 +432,106 @@ impl<'p> Serializer<'p> {
             s.push_str(Self::LINE_SEPARATOR);
         }
     }
+    /// Serializes to the given `writer` with the given `indent`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// See [`serialize_to_string`] for serialization to `String`.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// # Examples
+    ///
+    /// Serialize to a `Vec<u8>`:
+    ///
+    /// ```
+    /// # use std::io;
+    /// use m3c::formats::internal::Program;
+    /// use m3c::serialization::custom::assembly::Serializer;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// // the program to be serialized
+    /// let program = Program::default();
+    ///
+    /// let mut buf = Vec::new();
+    ///
+    /// let serializer = Serializer::new(&program);
+    ///
+    /// serializer.serialize_to_writer(&mut buf, "        ")?;
+    ///
+    /// assert!(buf.len() > 0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// To serialize to a file, it would be better to use a [`BufWriter`]:
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use std::io;
+    ///
+    /// use m3c::formats::internal::Program;
+    /// use m3c::serialization::custom::assembly::Serializer;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// // the program to be serialized
+    /// let program = Program::default();
+    ///
+    /// let file = File::create("a.m3a")?;
+    /// let mut buf_writer = io::BufWriter::new(file);
+    ///
+    /// let serializer = Serializer::new(&program);
+    ///
+    /// serializer.serialize_to_writer(&mut buf_writer, "        ")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`serialize_to_string`]: Self::serialize_to_string
+    /// [`BufWriter`]: std::io::BufWriter
+    /// [`write_all`]: io::Write::write_all
+    pub fn serialize_to_writer<W>(self, writer: &mut W, indent: &str) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let mut instruction_positions = self.program.instruction_positions();
+
+        // don't write that this's beginnig of the page (and a whole program)
+        let first_elem = instruction_positions.next();
+        match first_elem {
+            Some((_, ins)) => {
+                ins.write_all(writer, indent)?;
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+            }
+            None => unreachable!("The program should always have the first instruction"),
+        }
+
+        for (position, instruction) in instruction_positions {
+            if position.column() == 0 {
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+                writer.write_all(&[b';', b' ', b'('])?;
+                position.write_all(writer, true)?;
+                writer.write_all(&[b')', b' '])?;
+                if position.row() == 0 {
+                    writer.write_all(Self::NEW_PAGE_WARN.as_bytes())?;
+                } else {
+                    writer.write_all(Self::NEW_ROW_WARN.as_bytes())?;
+                }
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+            }
+            instruction.write_all(writer, indent)?;
+            writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
+
     use crate::formats::internal::literals::{
         LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
     };
@@ -437,5 +647,24 @@ mod tests {
         ip2.dumps_to(&mut s, true);
 
         assert_eq!(concat!(" 1: 2: 3", "10:11:12", "10:11"), s);
+    }
+
+    #[test]
+    fn instruction_position_write_all() {
+        let mut buf = Vec::with_capacity(21);
+
+        let ip1 = InstructionPosition::new(1, 2, 3).unwrap();
+        let ip2 = InstructionPosition::new(10, 11, 12).unwrap();
+
+        ip1.write_all(&mut buf, false).unwrap();
+        buf.write_all(&[b'_']).unwrap();
+        ip2.write_all(&mut buf, false).unwrap();
+        buf.write_all(&[b'_']).unwrap();
+        ip2.write_all(&mut buf, true).unwrap();
+
+        assert_eq!(
+            concat!(" 1: 2: 3_", "10:11:12_", "10:11"),
+            String::from_utf8(buf).unwrap()
+        );
     }
 }
