@@ -428,6 +428,49 @@ impl<'p> Serializer<'p> {
             s.push_str(Self::LINE_SEPARATOR);
         }
     }
+    /// Serializes to the given `writer` with the given `indent`.
+    ///
+    /// Internally uses the `writer`'s [`write_all`] method.
+    ///
+    /// # Errors
+    ///
+    /// See the [`write_all`]'s `Errors` sections.
+    ///
+    /// [`write_all`]: io::Write::write_all
+    pub fn serialize_to_writer<W>(self, writer: &mut W, indent: &str) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        let mut instruction_positions = self.program.instruction_positions();
+
+        // don't write that this's beginnig of the page (and a whole program)
+        let first_elem = instruction_positions.next();
+        match first_elem {
+            Some((_, ins)) => {
+                ins.write_all(writer, indent)?;
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+            }
+            None => unreachable!("The program should always have the first instruction"),
+        }
+
+        for (position, instruction) in instruction_positions {
+            if position.column() == 0 {
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+                writer.write_all(&[b';', b' ', b'('])?;
+                position.write_all(writer, true)?;
+                writer.write_all(&[b')', b' '])?;
+                if position.row() == 0 {
+                    writer.write_all(Self::NEW_PAGE_WARN.as_bytes())?;
+                } else {
+                    writer.write_all(Self::NEW_ROW_WARN.as_bytes())?;
+                }
+                writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+            }
+            instruction.write_all(writer, indent)?;
+            writer.write_all(Self::LINE_SEPARATOR.as_bytes())?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
