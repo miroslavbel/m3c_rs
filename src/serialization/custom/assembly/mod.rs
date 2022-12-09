@@ -398,6 +398,10 @@ impl<'p> Serializer<'p> {
         Self { program }
     }
     /// Serializes to the given `String` with the given `indent`.
+    ///
+    /// See [`serialize_to_writer`] for serialization to writer.
+    ///
+    /// [`serialize_to_writer`]: Self::serialize_to_writer
     pub fn serialize_to_string(&self, s: &mut String, indent: &str) {
         let mut instruction_positions = self.program.instruction_positions();
 
@@ -432,10 +436,61 @@ impl<'p> Serializer<'p> {
     ///
     /// Internally uses the `writer`'s [`write_all`] method.
     ///
+    /// See [`serialize_to_string`] for serialization to `String`.
+    ///
     /// # Errors
     ///
     /// See the [`write_all`]'s `Errors` sections.
     ///
+    /// # Examples
+    ///
+    /// Serialize to a `Vec<u8>`:
+    ///
+    /// ```
+    /// # use std::io;
+    /// use m3c::formats::internal::Program;
+    /// use m3c::serialization::custom::assembly::Serializer;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// // the program to be serialized
+    /// let program = Program::default();
+    ///
+    /// let mut buf = Vec::new();
+    ///
+    /// let serializer = Serializer::new(&program);
+    ///
+    /// serializer.serialize_to_writer(&mut buf, "        ")?;
+    ///
+    /// assert!(buf.len() > 0);
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// To serialize to a file, it would be better to use a [`BufWriter`]:
+    ///
+    /// ```no_run
+    /// use std::fs::File;
+    /// use std::io;
+    ///
+    /// use m3c::formats::internal::Program;
+    /// use m3c::serialization::custom::assembly::Serializer;
+    ///
+    /// # fn main() -> io::Result<()> {
+    /// // the program to be serialized
+    /// let program = Program::default();
+    ///
+    /// let file = File::create("a.m3a")?;
+    /// let mut buf_writer = io::BufWriter::new(file);
+    ///
+    /// let serializer = Serializer::new(&program);
+    ///
+    /// serializer.serialize_to_writer(&mut buf_writer, "        ")?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`serialize_to_string`]: Self::serialize_to_string
+    /// [`BufWriter`]: std::io::BufWriter
     /// [`write_all`]: io::Write::write_all
     pub fn serialize_to_writer<W>(self, writer: &mut W, indent: &str) -> io::Result<()>
     where
