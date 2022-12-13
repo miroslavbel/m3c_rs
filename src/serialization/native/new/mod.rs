@@ -6,7 +6,7 @@
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
 use crate::formats::internal::literals::{
-    LabelIdentifierLiteral, Literal, VariableIdentifierLiteral, VariableValueLiteral,
+    LabelIdentifierLiteral, Literal, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
 };
 use crate::formats::internal::{
     Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
@@ -248,6 +248,12 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                                 .unwrap()
                                 .into())
                         }
+                        '{' => {
+                            let (literal, _) = self.parse_literal::<StringLiteral>(&['}'], 2)?;
+                            Ok(Instruction::new_string(InstructionId::DebugBreak, literal)
+                                .unwrap()
+                                .into())
+                        }
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
                     '#' => match self.get_next_char()? {
@@ -355,6 +361,12 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         .unwrap()
                         .into()),
                     'z' => Ok(Instruction::new_simple(InstructionId::Digg).unwrap().into()),
+                    '{' => {
+                        let (literal, _) = self.parse_literal::<StringLiteral>(&['}'], 1)?;
+                        Ok(Instruction::new_string(InstructionId::DebugSet, literal)
+                            .unwrap()
+                            .into())
+                    }
                     '|' => {
                         let (literal, _) =
                             self.parse_literal::<LabelIdentifierLiteral>(&[':'], 1)?;
@@ -737,7 +749,7 @@ mod tests {
         };
 
         use crate::formats::internal::literals::{
-            LabelIdentifierLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+            LabelIdentifierLiteral, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
         };
         use crate::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
@@ -923,7 +935,8 @@ mod tests {
                 ">abc|:>zxc>->s12>=>sbf>",
                 "!?if<?ifn<",
                 "#Rrsp<",
-                "(va0<0)(a=99999)(va2>-5)"
+                "(va0<0)(a=99999)(va2>-5)",
+                "{dst}!{bp}"
             );
             // expected_program
             let mut expected_program = Program::default();
@@ -999,6 +1012,16 @@ mod tests {
                 InstructionId::VarMore,
                 VariableIdentifierLiteral::new_from_array([b'v', b'a', b'2', 0]).unwrap(),
                 VariableValueLiteral::new_from_value(-5).unwrap(),
+            )
+            .unwrap();
+            expected_program[13] = Instruction::new_string(
+                InstructionId::DebugSet,
+                StringLiteral::new_from_array([b'd', b's', b't', 0]).unwrap(),
+            )
+            .unwrap();
+            expected_program[14] = Instruction::new_string(
+                InstructionId::DebugBreak,
+                StringLiteral::new_from_array([b'b', b'p', 0, 0]).unwrap(),
             )
             .unwrap();
             // actual_program
