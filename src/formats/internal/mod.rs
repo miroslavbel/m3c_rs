@@ -336,6 +336,24 @@ impl Instruction {
             _ => Err(UnsupportedInstructionId {}),
         }
     }
+    /// Constructs a new instruction of the [`String`](InstructionKind::String) kind with the given
+    /// `instruction_id`.
+    ///
+    /// # Errors
+    /// If the given `instruction_id` is not appropriate to the [`String`](InstructionKind::String)
+    /// kind an [`UnsupportedInstructionId`] will be returned.
+    pub fn new_string(
+        instruction_id: InstructionId,
+        string_literal: StringLiteral,
+    ) -> Result<Self, UnsupportedInstructionId> {
+        match instruction_id.kind() {
+            InstructionKind::String => Ok(Instruction {
+                id: instruction_id,
+                data: InstructionData::String(string_literal),
+            }),
+            _ => Err(UnsupportedInstructionId {}),
+        }
+    }
     /// Returns the [instruction id](InstructionId).
     pub fn id(&self) -> InstructionId {
         self.id
