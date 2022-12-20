@@ -497,6 +497,12 @@ impl Default for InstructionPosition {
     }
 }
 
+impl From<InstructionPosition> for usize {
+    fn from(value: InstructionPosition) -> Self {
+        value.index()
+    }
+}
+
 // endregion: instruction_position
 
 /// An iterator over the [`Instruction`]s and their [position](InstructionPosition)s in
