@@ -313,18 +313,78 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     'C' => Ok(self.parse_latin_capital_letter_c()?.into()),
                     'D' => Ok(self.parse_latin_capital_letter_d()?.into()),
                     'F' => Ok(self.parse_latin_capital_letter_f()?.into()),
+                    'G' => match self.get_next_char()? {
+                        'E' => match self.get_next_char()? {
+                            'O' => match self.get_next_char()? {
+                                ';' => Ok(Instruction::new_simple(InstructionId::ActionGeopack)
+                                    .unwrap()
+                                    .into()),
+                                _ => Err(UnknownInstruction { index: self.index }.into()),
+                            },
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
                     'H' => Ok(self.parse_latin_capital_letter_h()?.into()),
                     'M' => Ok(self.parse_latin_capital_letter_m()?.into()),
+                    'N' => match self.get_next_char()? {
+                        'A' => match self.get_next_char()? {
+                            'N' => match self.get_next_char()? {
+                                'O' => match self.get_next_char()? {
+                                    ';' => Ok(Instruction::new_simple(InstructionId::ActionNano)
+                                        .unwrap()
+                                        .into()),
+                                    _ => Err(UnknownInstruction { index: self.index }.into()),
+                                },
+                                _ => Err(UnknownInstruction { index: self.index }.into()),
+                            },
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
                     'O' => match self.get_next_char()? {
                         'R' => Ok(Instruction::new_simple(InstructionId::BoolModeOr)
                             .unwrap()
                             .into()),
                         _ => Err(UnknownInstruction { index: self.index }.into()),
                     },
+                    'P' => match self.get_next_char()? {
+                        'O' => match self.get_next_char()? {
+                            'L' => match self.get_next_char()? {
+                                'Y' => match self.get_next_char()? {
+                                    ';' => Ok(Instruction::new_simple(InstructionId::ActionPoly)
+                                        .unwrap()
+                                        .into()),
+                                    _ => Err(UnknownInstruction { index: self.index }.into()),
+                                },
+                                _ => Err(UnknownInstruction { index: self.index }.into()),
+                            },
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
                     'R' => Ok(self.parse_latin_capital_letter_r()?.into()),
+                    'U' => match self.get_next_char()? {
+                        'P' => match self.get_next_char()? {
+                            ';' => Ok(Instruction::new_simple(InstructionId::ActionUp)
+                                .unwrap()
+                                .into()),
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
                     'V' => match self.get_next_char()? {
                         'B' => match self.get_next_char()? {
                             ';' => Ok(Instruction::new_simple(InstructionId::ActionWb)
+                                .unwrap()
+                                .into()),
+                            _ => Err(UnknownInstruction { index: self.index }.into()),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }.into()),
+                    },
+                    'Z' => match self.get_next_char()? {
+                        'Z' => match self.get_next_char()? {
+                            ';' => Ok(Instruction::new_simple(InstructionId::ActionZm)
                                 .unwrap()
                                 .into()),
                             _ => Err(UnknownInstruction { index: self.index }.into()),
@@ -348,6 +408,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                     'h' => Ok(Instruction::new_simple(InstructionId::ActionHeal)
                         .unwrap()
                         .into()),
+                    'i' => Ok(self.parse_latin_small_letter_i()?.into()),
                     'q' => Ok(Instruction::new_simple(InstructionId::ActionQuadro)
                         .unwrap()
                         .into()),
@@ -556,9 +617,32 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
     }
     fn parse_latin_capital_letter_c(&mut self) -> Result<Instruction, UnknownInstruction> {
         match self.get_next_char()? {
+            '1' => match self.get_next_char()? {
+                '9' => match self.get_next_char()? {
+                    '0' => match self.get_next_char()? {
+                        ';' => Ok(Instruction::new_simple(InstructionId::ActionC190).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
             'C' => match self.get_next_char()? {
                 'W' => match self.get_next_char()? {
                     ';' => Ok(Instruction::new_simple(InstructionId::RotateCcw).unwrap()),
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'R' => match self.get_next_char()? {
+                'A' => match self.get_next_char()? {
+                    'F' => match self.get_next_char()? {
+                        'T' => match self.get_next_char()? {
+                            ';' => Ok(Instruction::new_simple(InstructionId::ActionCraft).unwrap()),
+                            _ => Err(UnknownInstruction { index: self.index }),
+                        },
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
                     _ => Err(UnknownInstruction { index: self.index }),
                 },
                 _ => Err(UnknownInstruction { index: self.index }),
@@ -622,6 +706,17 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 },
                 _ => Err(UnknownInstruction { index: self.index }),
             },
+            'a' => match self.get_next_char()? {
+                'n' => match self.get_next_char()? {
+                    'd' => match self.get_next_char()? {
+                        '+' => Ok(Instruction::new_simple(InstructionId::HandModeOn).unwrap()),
+                        '-' => Ok(Instruction::new_simple(InstructionId::HandModeOff).unwrap()),
+                        _ => Err(UnknownInstruction { index: self.index }),
+                    },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
             _ => Err(UnknownInstruction { index: self.index }),
         }
     }
@@ -648,6 +743,13 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                         ';' => Ok(Instruction::new_simple(InstructionId::ActionRandom).unwrap()),
                         _ => Err(UnknownInstruction { index: self.index }),
                     },
+                    _ => Err(UnknownInstruction { index: self.index }),
+                },
+                _ => Err(UnknownInstruction { index: self.index }),
+            },
+            'E' => match self.get_next_char()? {
+                'M' => match self.get_next_char()? {
+                    ';' => Ok(Instruction::new_simple(InstructionId::ActionRembot).unwrap()),
                     _ => Err(UnknownInstruction { index: self.index }),
                 },
                 _ => Err(UnknownInstruction { index: self.index }),
@@ -735,6 +837,15 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             _ => Err(UnknownInstruction { index: self.index }),
         }
     }
+    fn parse_latin_small_letter_i(&mut self) -> Result<Instruction, UnknownInstruction> {
+        match self.get_next_char()? {
+            'a' => Ok(Instruction::new_simple(InstructionId::InvDirA).unwrap()),
+            'd' => Ok(Instruction::new_simple(InstructionId::InvDirD).unwrap()),
+            's' => Ok(Instruction::new_simple(InstructionId::InvDirS).unwrap()),
+            'w' => Ok(Instruction::new_simple(InstructionId::InvDirW).unwrap()),
+            _ => Err(UnknownInstruction { index: self.index }),
+        }
+    }
 }
 
 // region: tests
@@ -788,13 +899,15 @@ mod tests {
                 "=B=K=g=y=r=o=q=x=R",
                 "=hp50=hp-",
                 "#S#E",
-                "B1;B3;B2;BEEP;RAND;VB;",
+                "B1;B3;B2;BEEP;RAND;VB;GEO;ZZ;POLY;C190;CRAFT;UP;NANO;REM;",
                 "BUILD;DIGG;HEAL;MINE;",
                 "AUT+AUT-AGR+AGR-",
                 "ANDOR",
                 "CCW;CW;",
                 "FLIP;",
                 "FILL;",
+                "iaidisiw",
+                "Hand+Hand-",
                 "<|"
             );
             // expected_program
@@ -874,28 +987,44 @@ mod tests {
             expected_program[62] = Instruction::new_simple(InstructionId::ActionBibika).unwrap();
             expected_program[63] = Instruction::new_simple(InstructionId::ActionRandom).unwrap();
             expected_program[64] = Instruction::new_simple(InstructionId::ActionWb).unwrap();
+            expected_program[65] = Instruction::new_simple(InstructionId::ActionGeopack).unwrap();
+            expected_program[66] = Instruction::new_simple(InstructionId::ActionZm).unwrap();
+            expected_program[67] = Instruction::new_simple(InstructionId::ActionPoly).unwrap();
+            expected_program[68] = Instruction::new_simple(InstructionId::ActionC190).unwrap();
+            expected_program[69] = Instruction::new_simple(InstructionId::ActionCraft).unwrap();
+            expected_program[70] = Instruction::new_simple(InstructionId::ActionUp).unwrap();
+            expected_program[71] = Instruction::new_simple(InstructionId::ActionNano).unwrap();
+            expected_program[72] = Instruction::new_simple(InstructionId::ActionRembot).unwrap();
             //     std
-            expected_program[65] = Instruction::new_simple(InstructionId::StdBuild).unwrap();
-            expected_program[66] = Instruction::new_simple(InstructionId::StdDigg).unwrap();
-            expected_program[67] = Instruction::new_simple(InstructionId::StdHeal).unwrap();
-            expected_program[68] = Instruction::new_simple(InstructionId::StdMine).unwrap();
+            expected_program[73] = Instruction::new_simple(InstructionId::StdBuild).unwrap();
+            expected_program[74] = Instruction::new_simple(InstructionId::StdDigg).unwrap();
+            expected_program[75] = Instruction::new_simple(InstructionId::StdHeal).unwrap();
+            expected_program[76] = Instruction::new_simple(InstructionId::StdMine).unwrap();
             //     mode
-            expected_program[69] = Instruction::new_simple(InstructionId::ModeAutodiggOn).unwrap();
-            expected_program[70] = Instruction::new_simple(InstructionId::ModeAutodiggOff).unwrap();
-            expected_program[71] = Instruction::new_simple(InstructionId::ModeAgrOn).unwrap();
-            expected_program[72] = Instruction::new_simple(InstructionId::ModeAgrOff).unwrap();
+            expected_program[77] = Instruction::new_simple(InstructionId::ModeAutodiggOn).unwrap();
+            expected_program[78] = Instruction::new_simple(InstructionId::ModeAutodiggOff).unwrap();
+            expected_program[79] = Instruction::new_simple(InstructionId::ModeAgrOn).unwrap();
+            expected_program[80] = Instruction::new_simple(InstructionId::ModeAgrOff).unwrap();
             //     bool_mode
-            expected_program[73] = Instruction::new_simple(InstructionId::BoolModeAnd).unwrap();
-            expected_program[74] = Instruction::new_simple(InstructionId::BoolModeOr).unwrap();
+            expected_program[81] = Instruction::new_simple(InstructionId::BoolModeAnd).unwrap();
+            expected_program[82] = Instruction::new_simple(InstructionId::BoolModeOr).unwrap();
             //     rotates
-            expected_program[75] = Instruction::new_simple(InstructionId::RotateCcw).unwrap();
-            expected_program[76] = Instruction::new_simple(InstructionId::RotateCw).unwrap();
+            expected_program[83] = Instruction::new_simple(InstructionId::RotateCcw).unwrap();
+            expected_program[84] = Instruction::new_simple(InstructionId::RotateCw).unwrap();
             //     prog_flip
-            expected_program[77] = Instruction::new_simple(InstructionId::ProgFlip).unwrap();
+            expected_program[85] = Instruction::new_simple(InstructionId::ProgFlip).unwrap();
             //     fill_gun
-            expected_program[78] = Instruction::new_simple(InstructionId::FillGun).unwrap();
+            expected_program[86] = Instruction::new_simple(InstructionId::FillGun).unwrap();
+            //     inv
+            expected_program[87] = Instruction::new_simple(InstructionId::InvDirA).unwrap();
+            expected_program[88] = Instruction::new_simple(InstructionId::InvDirD).unwrap();
+            expected_program[89] = Instruction::new_simple(InstructionId::InvDirS).unwrap();
+            expected_program[90] = Instruction::new_simple(InstructionId::InvDirW).unwrap();
+            //     hand
+            expected_program[91] = Instruction::new_simple(InstructionId::HandModeOn).unwrap();
+            expected_program[92] = Instruction::new_simple(InstructionId::HandModeOff).unwrap();
             //     for tail check
-            expected_program[79] = Instruction::new_simple(InstructionId::Return).unwrap();
+            expected_program[93] = Instruction::new_simple(InstructionId::Return).unwrap();
             // actual_program
             let mut actual_program = Program::default();
             let mut de = TextFormatDeserializer::new_from_str(&mut actual_program, s);

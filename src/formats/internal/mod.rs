@@ -198,8 +198,8 @@ pub enum InstructionId {
     InvDirS = 177,
     InvDirD = 178,
 
-    HandModeON = 179,
-    HandModeOFF = 180,
+    HandModeOn = 179,
+    HandModeOff = 180,
 
     DebugBreak = 181,
     DebugSet = 182,
