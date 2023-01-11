@@ -33,6 +33,19 @@ impl fmt::Display for IllegalVariableValueError {
 
 impl Error for IllegalVariableValueError {}
 
+/// Literal's type.
+#[derive(Clone, Copy, Debug)]
+pub enum LiteralType {
+    /// See [`LabelIdentifierLiteral`].
+    LabelIdentifierLiteral,
+    /// See [`StringLiteral`].
+    StringLiteral,
+    /// See [`VariableIdentifierLiteral`].
+    VariableIdentifierLiteral,
+    /// See [`VariableValueLiteral`].
+    VariableValueLiteral,
+}
+
 pub trait Literal {
     /// The maximum possible length in chars that a literal can occupy in a `str`.
     const MAX_CHAR_LEN: usize;
