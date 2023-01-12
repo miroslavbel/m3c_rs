@@ -199,13 +199,11 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             index: 0,
         }
     }
-    ///
-    /// # Errors
-    pub fn deserialize_v2(&mut self) -> Result<(), DeserializeErrors> {
+    pub fn deserialize(&mut self) -> Result<(), DeserializeErrors> {
         self.check_magic()?;
         self.program.reset();
         loop {
-            match self.parse_next_v2()? {
+            match self.parse_next()? {
                 None => break Ok(()),
                 Some(InstructionOrCommand::Instruction(instruction)) => {
                     self.program[self.position] = instruction;
@@ -233,7 +231,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             }
         }
     }
-    fn parse_next_v2(&mut self) -> Result<Option<InstructionOrCommand>, ParseNextErrors> {
+    fn parse_next(&mut self) -> Result<Option<InstructionOrCommand>, ParseNextErrors> {
         let first_char = self.enumeration.next();
         match first_char {
             None => Ok(None),
