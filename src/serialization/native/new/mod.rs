@@ -6,11 +6,16 @@
 use std::{error::Error, fmt, iter::Enumerate, str::Chars};
 
 use crate::formats::internal::literals::{
-    LabelIdentifierLiteral, Literal, StringLiteral, VariableIdentifierLiteral, VariableValueLiteral,
+    LabelIdentifierLiteral, Literal, LiteralType, StringLiteral, VariableIdentifierLiteral,
+    VariableValueLiteral,
 };
 use crate::formats::internal::{
-    Instruction, InstructionId, InstructionPosition, InstructionPositionOverflowError, Program,
+    Instruction, InstructionId, InstructionKind, InstructionPosition,
+    InstructionPositionOverflowError, Program,
 };
+
+mod data;
+use data::{Node, DATA};
 
 // region: errors
 
@@ -193,6 +198,169 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             position: InstructionPosition::default(),
             program,
             index: 0,
+        }
+    }
+    ///
+    /// # Errors
+    pub fn deserialize_v2(&mut self) -> Result<(), DeserializeErrors> {
+        self.check_magic()?;
+        self.program.reset();
+        loop {
+            match self.parse_next_v2()? {
+                None => break Ok(()),
+                Some(InstructionOrCommand::Instruction(instruction)) => {
+                    self.program[self.position] = instruction;
+                    self.position.move_forward()?;
+                    continue;
+                }
+                Some(InstructionOrCommand::Command(command)) => match command {
+                    Command::OneStepForward => {
+                        self.position.move_forward()?;
+                        continue;
+                    }
+                    Command::ThreeStepsForward => {
+                        self.position.move_three_steps_forward()?;
+                        continue;
+                    }
+                    Command::GoToNextRow => {
+                        self.position.move_to_next_row()?;
+                        continue;
+                    }
+                    Command::GoToNextPage => {
+                        self.position.move_to_next_page()?;
+                        continue;
+                    }
+                },
+            }
+        }
+    }
+    fn parse_next_v2(&mut self) -> Result<Option<InstructionOrCommand>, ParseNextErrors> {
+        let first_char = self.enumeration.next();
+        match first_char {
+            None => Ok(None),
+            Some((index, first_char)) => {
+                self.index = index;
+
+                // "registers"
+                let mut label: Option<LabelIdentifierLiteral> = None;
+                let mut string: Option<StringLiteral> = None;
+                let mut name: Option<VariableIdentifierLiteral> = None;
+                let mut value: Option<VariableValueLiteral> = None;
+                let mut next_char: Option<char> = None;
+
+                match &DATA.binary_search_by_key(&first_char, |&(ch, _)| ch) {
+                    Err(_) => return Err(UnknownInstruction { index: self.index }.into()),
+                    Ok(x) => {
+                        let mut the_node = &DATA[*x].1;
+                        loop {
+                            match the_node {
+                                Node::Command(command) => {
+                                    return Ok(Some(InstructionOrCommand::Command(*command)))
+                                }
+                                Node::Id(id) => {
+                                    return match id.kind() {
+                                        InstructionKind::Simple => {
+                                            Ok(Instruction::new_simple(*id).unwrap().into())
+                                        }
+                                        InstructionKind::Label => {
+                                            Ok(Instruction::new_label(*id, label.unwrap())
+                                                .unwrap()
+                                                .into())
+                                        }
+                                        InstructionKind::String => {
+                                            Ok(Instruction::new_string(*id, string.unwrap())
+                                                .unwrap()
+                                                .into())
+                                        }
+                                        InstructionKind::VarCmp => Ok(Instruction::new_var_cmp(
+                                            *id,
+                                            name.unwrap(),
+                                            value.unwrap(),
+                                        )
+                                        .unwrap()
+                                        .into()),
+                                    }
+                                }
+                                Node::Literal((literal, node)) => {
+                                    match literal {
+                                        LiteralType::LabelIdentifierLiteral => {
+                                            let (literal, next_char_) =
+                                                LabelIdentifierLiteral::new_from_enumerate(
+                                                    &mut self.enumeration,
+                                                );
+                                            label = Some(literal);
+                                            match next_char_ {
+                                                None => {}
+                                                Some((_, b)) => {
+                                                    next_char = Some(b);
+                                                }
+                                            }
+                                        }
+                                        LiteralType::StringLiteral => {
+                                            let (literal, next_char_) =
+                                                StringLiteral::new_from_enumerate(
+                                                    &mut self.enumeration,
+                                                );
+                                            string = Some(literal);
+                                            match next_char_ {
+                                                None => {}
+                                                Some((_, b)) => {
+                                                    next_char = Some(b);
+                                                }
+                                            }
+                                        }
+                                        LiteralType::VariableIdentifierLiteral => {
+                                            let (literal, next_char_) =
+                                                VariableIdentifierLiteral::new_from_enumerate(
+                                                    &mut self.enumeration,
+                                                );
+                                            name = Some(literal);
+                                            match next_char_ {
+                                                None => {}
+                                                Some((_, b)) => {
+                                                    next_char = Some(b);
+                                                }
+                                            }
+                                        }
+                                        LiteralType::VariableValueLiteral => {
+                                            let (literal, next_char_) =
+                                                VariableValueLiteral::new_from_enumerate(
+                                                    &mut self.enumeration,
+                                                );
+                                            value = Some(literal);
+                                            match next_char_ {
+                                                None => {}
+                                                Some((_, b)) => {
+                                                    next_char = Some(b);
+                                                }
+                                            }
+                                        }
+                                    }
+                                    the_node = &node[0]; // in this case only one node can be
+                                    continue;
+                                }
+                                Node::Chars(current) => {
+                                    let next_char = match next_char {
+                                        None => self.get_next_char()?,
+                                        Some(c) => c,
+                                    };
+                                    match current.binary_search_by_key(&next_char, |&(ch, _)| ch) {
+                                        Err(_) => {
+                                            return Err(
+                                                UnknownInstruction { index: self.index }.into()
+                                            )
+                                        }
+                                        Ok(x) => {
+                                            the_node = &current[x].1;
+                                            continue;
+                                        }
+                                    }
+                                }
+                            };
+                        }
+                    }
+                }
+            }
         }
     }
     pub fn deserialize(&mut self) -> Result<(), DeserializeErrors> {
