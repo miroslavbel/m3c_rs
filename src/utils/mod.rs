@@ -10,6 +10,12 @@ pub struct CharPosition {
     pub column: usize,
 }
 
+impl CharPosition {
+    pub fn custom_format(&self) -> String {
+        format_args!("{}:{}", self.line, self.column).to_string()
+    }
+}
+
 /// A wrapper to track char position (in `line:column` way) around the [`str::chars()`].
 ///
 /// To return only char index without line and column see [`Chars::enumerate()`].
