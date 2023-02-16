@@ -3,7 +3,12 @@
 //! It's only available to serialize from [Internal format](crate::formats::internal)
 //! and deserialize into [Internal format](crate::formats::internal).
 
-use std::{error::Error, fmt, iter::Enumerate, str::Chars};
+use std::{
+    error::Error,
+    fmt,
+    iter::{Enumerate, Peekable},
+    str::Chars,
+};
 
 use crate::formats::internal::literals::{
     LabelIdentifierLiteral, Literal, LiteralType, StringLiteral, VariableIdentifierLiteral,
@@ -12,6 +17,8 @@ use crate::formats::internal::literals::{
 use crate::formats::internal::{
     Instruction, InstructionKind, InstructionPosition, InstructionPositionOverflowError, Program,
 };
+use crate::formats::native::new::diagnostics::{Diagnostics, NoMagicFound};
+use crate::utils::{CharPosition, EnumerateWithPosition};
 
 mod data;
 use data::{Node, DATA};
@@ -379,5 +386,108 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
             None => Err(UnknownInstruction { index: self.index }),
             Some((_, ch)) => Ok(ch),
         }
+    }
+}
+
+pub struct TextFormatDeserializerV2<'s> {
+    // original source
+    source: &'s str,
+    // an iterator over the chars (and its position on the `source`)
+    source_iter: Peekable<EnumerateWithPosition<'s>>,
+    // points to the first char of token
+    token_start: CharPosition,
+    // instruction position at program
+    ins_pos: InstructionPosition,
+    // diagnostics
+    diagnostics: Vec<Diagnostics>,
+}
+
+impl<'s> TextFormatDeserializerV2<'s> {
+    pub fn new(str: &'s str) -> Self {
+        Self {
+            source: str,
+            // FIXME it will be reassigned in `reset`. Maybe use MaybeUninit?
+            source_iter: EnumerateWithPosition::new(str).peekable(),
+            ins_pos: InstructionPosition::default(),
+            token_start: CharPosition::default(),
+            diagnostics: vec![],
+        }
+    }
+    pub fn deserialize(&mut self, program: &mut Program) -> Vec<Diagnostics> {
+        // resets
+        self.reset();
+        program.reset();
+
+        self.check_magic();
+
+        loop {
+            match self.parse_next_token() {
+                None => {
+                    return std::mem::take(&mut self.diagnostics);
+                }
+                Some(InstructionOrCommand::Instruction(ins)) => {
+                    program[self.ins_pos] = ins;
+                    match self.ins_pos.move_forward() {
+                        Ok(_) => {
+                            continue;
+                        }
+                        Err(_) => {
+                            // TODO add to `self.diagnostics`
+                            return std::mem::take(&mut self.diagnostics);
+                        }
+                    }
+                }
+                Some(InstructionOrCommand::Command(_)) => {
+                    todo!()
+                }
+            }
+        }
+    }
+    fn reset(&mut self) {
+        self.source_iter = EnumerateWithPosition::new(self.source).peekable();
+        self.token_start = CharPosition::default();
+        self.ins_pos = InstructionPosition::default();
+    }
+    /// Peeks one char from `source_iter`. If it's a valid magic advances the iterator. If not
+    /// pushes `NoMagicFound` diagnostic.
+    fn check_magic(&mut self) {
+        match self.source_iter.peek() {
+            Some((_, ch)) if ch == &'$' => {
+                self.source_iter.next();
+            }
+            None | Some(_) => {
+                self.diagnostics.push(NoMagicFound::new().into());
+            }
+        }
+    }
+    /// Parses the next token.
+    ///
+    /// Assumes that `self.iter` points to the first char of token or EOF. Sets `self.token_start`.
+    fn parse_next_token(&mut self) -> Option<InstructionOrCommand> {
+        // let mut label: Option<LabelIdentifierLiteral> = None;
+        // let mut string: Option<StringLiteral> = None;
+        // let mut name: Option<VariableIdentifierLiteral> = None;
+        // let mut value: Option<VariableValueLiteral> = None;
+
+        // TODO function for that?
+        // iterate while
+        //     + not finding valid char to start parse the token (then return the suitable node)
+        //     + EOF (`self.iter.next()` returns `None`)
+        let node = loop {
+            let first_char = self.source_iter.next()?;
+            match &DATA.binary_search_by_key(&first_char.1, |&(ch, _)| ch) {
+                Err(_) => {
+                    // TODO add to `self.diagnostics`
+                    // jump to next char
+                    continue;
+                }
+                Ok(i) => {
+                    self.token_start = first_char.0;
+                    break &DATA[*i].1;
+                }
+            }
+        };
+
+        todo!()
     }
 }

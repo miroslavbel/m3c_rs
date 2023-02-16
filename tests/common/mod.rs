@@ -4,6 +4,12 @@ pub mod internal;
 
 pub mod native {
     pub mod new {
+        /// Totally empty string.
+        pub static EMPTY: &str = "";
+
+        /// Contains only magic.
+        pub static ONLY_MAGIC: &str = "$";
+
         /// A string with all `Simple` kind instuctions.
         pub static ALL_SIMPLE: &str = concat!(
             "$<|<-|<=|",

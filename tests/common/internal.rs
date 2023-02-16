@@ -3,6 +3,11 @@ use m3c::formats::internal::literals::{
 };
 use m3c::formats::internal::{Instruction, InstructionId, InstructionPosition, Program};
 
+/// Returns empty program.
+pub fn empty() -> Program {
+    Program::default()
+}
+
 /// Returns a program which contains all `Simple` kind instructions.
 pub fn all_simple() -> Program {
     let mut program = Program::default();
