@@ -17,7 +17,7 @@ use crate::formats::internal::literals::{
 use crate::formats::internal::{
     Instruction, InstructionKind, InstructionPosition, InstructionPositionOverflowError, Program,
 };
-use crate::formats::native::new::diagnostics::{Diagnostics, NoMagicFound};
+use crate::formats::native::new::diagnostics::{Diagnostics, NoMagicFound, UnknownToken};
 use crate::utils::{CharPosition, EnumerateWithPosition};
 
 mod data;
@@ -396,6 +396,9 @@ pub struct TextFormatDeserializerV2<'s> {
     source_iter: Peekable<EnumerateWithPosition<'s>>,
     // points to the first char of token
     token_start: CharPosition,
+    // tracks the start (`.0`) and the end (`.1`) of the illegal char sequence. Value `None` stands
+    // for no sequence detected
+    illegal_chars: Option<(CharPosition, CharPosition)>,
     // instruction position at program
     ins_pos: InstructionPosition,
     // diagnostics
@@ -410,6 +413,7 @@ impl<'s> TextFormatDeserializerV2<'s> {
             source_iter: EnumerateWithPosition::new(str).peekable(),
             ins_pos: InstructionPosition::default(),
             token_start: CharPosition::default(),
+            illegal_chars: None,
             diagnostics: vec![],
         }
     }
@@ -443,9 +447,13 @@ impl<'s> TextFormatDeserializerV2<'s> {
             }
         }
     }
+    /// Resets the state.
+    ///
+    /// Doesn't reset:
+    /// + `token_start` - because we use this value only after reset set up in `parse_next_token`
+    /// + `illegal_chars` - because we reset it at the start of `parse_next_token`
     fn reset(&mut self) {
         self.source_iter = EnumerateWithPosition::new(self.source).peekable();
-        self.token_start = CharPosition::default();
         self.ins_pos = InstructionPosition::default();
     }
     /// Peeks one char from `source_iter`. If it's a valid magic advances the iterator. If not
@@ -462,32 +470,70 @@ impl<'s> TextFormatDeserializerV2<'s> {
     }
     /// Parses the next token.
     ///
-    /// Assumes that `self.iter` points to the first char of token or EOF. Sets `self.token_start`.
+    /// Consumes `self.source_iter` until whole token is read or the end of the iterator is
+    /// reached. If there is an illegal char sequence before the token or the iterator's end, add
+    /// `UnknownToken` diagnostic.
     fn parse_next_token(&mut self) -> Option<InstructionOrCommand> {
-        // let mut label: Option<LabelIdentifierLiteral> = None;
-        // let mut string: Option<StringLiteral> = None;
-        // let mut name: Option<VariableIdentifierLiteral> = None;
-        // let mut value: Option<VariableValueLiteral> = None;
+        self.illegal_chars = None;
 
-        // TODO function for that?
-        // iterate while
-        //     + not finding valid char to start parse the token (then return the suitable node)
-        //     + EOF (`self.iter.next()` returns `None`)
-        let node = loop {
+        loop {
             let first_char = self.source_iter.next()?;
+
             match &DATA.binary_search_by_key(&first_char.1, |&(ch, _)| ch) {
                 Err(_) => {
-                    // TODO add to `self.diagnostics`
-                    // jump to next char
+                    if let Some((_, end)) = &mut self.illegal_chars {
+                        // just update the end of illegal char sequences
+                        *end = first_char.0;
+                    } else {
+                        // that's first illegal char. Initialize `illegal_chars`
+                        self.illegal_chars = Some((first_char.0, first_char.0));
+                    }
+                    // try to parse token from the next char
                     continue;
                 }
                 Ok(i) => {
+                    let mut node = &DATA[*i].1;
                     self.token_start = first_char.0;
-                    break &DATA[*i].1;
+
+                    // if there is illegal char sequence add `UnknownToken` diagnostic
+                    if let Some((start, end)) = self.illegal_chars {
+                        self.diagnostics.push(UnknownToken::new(start, end).into());
+                    }
+
+                    loop {
+                        match node {
+                            Node::Command(command) => {
+                                return Some(InstructionOrCommand::Command(*command))
+                            }
+                            Node::Id(id) => {
+                                return match id.kind() {
+                                    InstructionKind::Simple => {
+                                        Instruction::new_simple(*id).unwrap().into()
+                                    }
+                                    _ => todo!(),
+                                }
+                            }
+                            Node::Literal(_) => {
+                                todo!()
+                            }
+                            Node::Chars(current) => {
+                                let next_char = self.source_iter.next()?;
+                                match current.binary_search_by_key(&next_char.1, |&(ch, _)| ch) {
+                                    Err(_) => {
+                                        // It means we have uknown char at the middle of token
+                                        // TODO push to diagnostic
+                                        return None;
+                                    }
+                                    Ok(x) => {
+                                        node = &current[x].1;
+                                        continue;
+                                    }
+                                }
+                            }
+                        };
+                    }
                 }
             }
-        };
-
-        todo!()
+        }
     }
 }

@@ -10,6 +10,12 @@ pub mod native {
         /// Contains only magic.
         pub static ONLY_MAGIC: &str = "$";
 
+        /// Contains only one instruction (`MoveW`) and no magic.
+        pub static NO_MAGIC_BUT_MOVE_W: &str = "^W";
+
+        /// Contains some instructions and some illegal chars to start token with.
+        pub static WITH_ILLEGAL_START_CHARS: &str = "$^W]]]]^Sфівіаві^F";
+
         /// A string with all `Simple` kind instuctions.
         pub static ALL_SIMPLE: &str = concat!(
             "$<|<-|<=|",
