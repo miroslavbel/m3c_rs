@@ -16,6 +16,9 @@ pub mod native {
         /// Contains some instructions and some illegal chars to start token with.
         pub static WITH_ILLEGAL_START_CHARS: &str = "$^W]]]]^Sфівіаві^F";
 
+        /// Contains some instructions and some illegal chars in the middle of token.
+        pub static WITH_UNKNOWN_CONTINUATION_CHARS: &str = "$^W^a^SGEa^FGE";
+
         /// A string with all `Simple` kind instuctions.
         pub static ALL_SIMPLE: &str = concat!(
             "$<|<-|<=|",

@@ -24,6 +24,17 @@ pub fn moves_wsf() -> Program {
     program
 }
 
+/// Returns program with some moves and looks.
+pub fn moves_and_looks() -> Program {
+    let mut program = Program::default();
+    program[0] = Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[1] = Instruction::new_simple(InstructionId::LookA).unwrap();
+    program[2] = Instruction::new_simple(InstructionId::MoveS).unwrap();
+    program[3] = Instruction::new_simple(InstructionId::LookA).unwrap();
+    program[4] = Instruction::new_simple(InstructionId::MoveF).unwrap();
+    program
+}
+
 /// Returns a program which contains all `Simple` kind instructions.
 pub fn all_simple() -> Program {
     let mut program = Program::default();
