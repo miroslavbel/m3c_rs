@@ -113,6 +113,12 @@ fn deserialize_v2_simple_instructions() {
 }
 
 /// Tests that Deserializer can go the next char if this char is illegal to start the token with.
+///
+/// ```text
+/// 012345678901234567
+/// $^W]]]]^Sфівіаві^F
+///    ^^^^  ^^^^^^^
+/// ```
 #[test]
 fn deserialize_v2_simple_instructions_with_illegal_start_chars() {
     let given_string = common::native::new::WITH_ILLEGAL_START_CHARS;
@@ -142,6 +148,69 @@ fn deserialize_v2_simple_instructions_with_illegal_start_chars() {
                 index: 15,
                 line: 0,
                 column: 15,
+            },
+        )
+        .into(),
+    ];
+
+    let mut actual_program = common::internal::empty();
+
+    let mut de = TextFormatDeserializerV2::new(given_string);
+    let actual_diagnostics = de.deserialize(&mut actual_program);
+
+    assert_eq!(expected_program, actual_program);
+    assert_eq!(expected_diagnostics, actual_diagnostics);
+}
+
+/// A test for illegal token continuation ([`UnknownToken`]).
+///
+/// ```text
+/// 01234567890123
+/// $^W^a^SGEa^FGE
+///    ^   ^^   ^^
+/// ```
+#[test]
+fn deserialize_v2_unknown_token_continuation() {
+    let given_string = common::native::new::WITH_UNKNOWN_CONTINUATION_CHARS;
+
+    let expected_program = common::internal::moves_and_looks();
+    let expected_diagnostics: Vec<Diagnostics> = vec![
+        UnknownToken::new(
+            CharPosition {
+                index: 3,
+                line: 0,
+                column: 3,
+            },
+            CharPosition {
+                index: 3,
+                line: 0,
+                column: 3,
+            },
+        )
+        .into(),
+        UnknownToken::new(
+            CharPosition {
+                index: 7,
+                line: 0,
+                column: 7,
+            },
+            CharPosition {
+                index: 8,
+                line: 0,
+                column: 8,
+            },
+        )
+        .into(),
+        UnknownToken::new(
+            CharPosition {
+                index: 12,
+                line: 0,
+                column: 12,
+            },
+            CharPosition {
+                index: 13,
+                line: 0,
+                column: 13,
             },
         )
         .into(),

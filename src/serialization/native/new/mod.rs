@@ -394,8 +394,10 @@ pub struct TextFormatDeserializerV2<'s> {
     source: &'s str,
     // an iterator over the chars (and its position on the `source`)
     source_iter: Peekable<EnumerateWithPosition<'s>>,
-    // points to the first char of token
-    token_start: CharPosition,
+    // points to char pretending to be the fisrt token char
+    token_start: (CharPosition, char),
+    // position of the last valid char in the token
+    last_char: CharPosition,
     // tracks the start (`.0`) and the end (`.1`) of the illegal char sequence. Value `None` stands
     // for no sequence detected
     illegal_chars: Option<(CharPosition, CharPosition)>,
@@ -411,9 +413,13 @@ impl<'s> TextFormatDeserializerV2<'s> {
             source: str,
             // FIXME it will be reassigned in `reset`. Maybe use MaybeUninit?
             source_iter: EnumerateWithPosition::new(str).peekable(),
-            ins_pos: InstructionPosition::default(),
-            token_start: CharPosition::default(),
+            // NOTE: every time updates before read in `parse_next_token`
+            token_start: (CharPosition::default(), '\0'),
+            // NOTE: every time updates before read in `parse_next_token`
+            last_char: CharPosition::default(),
+            // NOTE: every time updates before read in `parse_next_token`
             illegal_chars: None,
+            ins_pos: InstructionPosition::default(),
             diagnostics: vec![],
         }
     }
@@ -449,12 +455,14 @@ impl<'s> TextFormatDeserializerV2<'s> {
     }
     /// Resets the state.
     ///
-    /// Doesn't reset:
-    /// + `token_start` - because we use this value only after reset set up in `parse_next_token`
-    /// + `illegal_chars` - because we reset it at the start of `parse_next_token`
+    /// Doesn't reset values below (`parse_next_token` is responsible for it):
+    /// + `token_start`
+    /// + `last_char`
+    /// + `illegal_chars`
     fn reset(&mut self) {
         self.source_iter = EnumerateWithPosition::new(self.source).peekable();
         self.ins_pos = InstructionPosition::default();
+        // TODO: what about diagnostic?
     }
     /// Peeks one char from `source_iter`. If it's a valid magic advances the iterator. If not
     /// pushes `NoMagicFound` diagnostic.
@@ -476,63 +484,105 @@ impl<'s> TextFormatDeserializerV2<'s> {
     fn parse_next_token(&mut self) -> Option<InstructionOrCommand> {
         self.illegal_chars = None;
 
-        loop {
-            let first_char = self.source_iter.next()?;
+        // Here it reads the char for the really *first* time. So `self.illegal_chars` is `None`.
+        // So no need to call `self.next_char`
+        self.token_start = self.source_iter.next()?;
+        self.last_char = self.token_start.0;
 
-            match &DATA.binary_search_by_key(&first_char.1, |&(ch, _)| ch) {
+        // loop to find first valid char to start token with
+        loop {
+            match &DATA.binary_search_by_key(&self.token_start.1, |&(ch, _)| ch) {
+                // that isn't a valid char to start token with. It needs to update
+                // `self.illegal_chars` and set up the new value to the `self.token_start`
                 Err(_) => {
                     if let Some((_, end)) = &mut self.illegal_chars {
                         // just update the end of illegal char sequences
-                        *end = first_char.0;
+                        *end = self.token_start.0;
                     } else {
-                        // that's first illegal char. Initialize `illegal_chars`
-                        self.illegal_chars = Some((first_char.0, first_char.0));
+                        // that's really *first* illegal char. Initialize `illegal_chars`
+                        self.illegal_chars = Some((self.token_start.0, self.token_start.0));
                     }
-                    // try to parse token from the next char
+
+                    // set up the next char to `self.token_start` and run iteration
+                    self.token_start = self.next_char()?;
                     continue;
                 }
+
+                // That's a valid char to start token with
                 Ok(i) => {
                     let mut node = &DATA[*i].1;
-                    self.token_start = first_char.0;
 
-                    // if there is illegal char sequence add `UnknownToken` diagnostic
-                    if let Some((start, end)) = self.illegal_chars {
-                        self.diagnostics.push(UnknownToken::new(start, end).into());
-                    }
-
+                    // loop over nodes util full token will be read
                     loop {
                         match node {
                             Node::Command(command) => {
-                                return Some(InstructionOrCommand::Command(*command))
+                                if let Some((start, end)) = self.illegal_chars {
+                                    self.diagnostics.push(UnknownToken::new(start, end).into())
+                                }
+
+                                return Some(InstructionOrCommand::Command(*command));
                             }
                             Node::Id(id) => {
+                                if let Some((start, end)) = self.illegal_chars {
+                                    self.diagnostics.push(UnknownToken::new(start, end).into())
+                                }
+
                                 return match id.kind() {
                                     InstructionKind::Simple => {
                                         Instruction::new_simple(*id).unwrap().into()
                                     }
                                     _ => todo!(),
-                                }
+                                };
                             }
                             Node::Literal(_) => {
                                 todo!()
                             }
                             Node::Chars(current) => {
-                                let next_char = self.source_iter.next()?;
+                                let next_char = self.next_char()?;
                                 match current.binary_search_by_key(&next_char.1, |&(ch, _)| ch) {
+                                    // Means we have unknown char at the middle of token (second or further char)
                                     Err(_) => {
-                                        // It means we have uknown char at the middle of token
-                                        // TODO push to diagnostic
-                                        return None;
+                                        // here `end` updated by `self.last_char` because `next_char` can be
+                                        // a valid char to start token with
+                                        if let Some((_, end)) = &mut self.illegal_chars {
+                                            *end = self.last_char;
+                                        } else {
+                                            self.illegal_chars =
+                                                Some((self.token_start.0, self.last_char));
+                                        }
+
+                                        // set up the next char to `self.token_start` and run the main iteration
+                                        self.token_start = next_char;
+                                        break;
                                     }
                                     Ok(x) => {
+                                        self.last_char = next_char.0;
                                         node = &current[x].1;
                                         continue;
                                     }
                                 }
                             }
-                        };
+                        }
                     }
                 }
+            }
+        }
+    }
+    /// Just wrapper around `self.source_iter.next()`.
+    ///
+    /// If the result of `self.source_iter.next()` is `None` pushes `UnknownToken` diagnostic.
+    fn next_char(&mut self) -> Option<(CharPosition, char)> {
+        match self.source_iter.next() {
+            Some(x) => Some(x),
+            None => {
+                if let Some((start, _)) = self.illegal_chars {
+                    self.diagnostics
+                        .push(UnknownToken::new(start, self.last_char).into())
+                } else {
+                    self.diagnostics
+                        .push(UnknownToken::new(self.token_start.0, self.last_char).into())
+                }
+                None
             }
         }
     }
