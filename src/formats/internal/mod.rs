@@ -67,7 +67,7 @@ impl Error for InstructionPositionOverflowError {}
 ///
 /// All values are taken from official client. Values are in range `[0-182]`. There is no ids for
 /// values `13, 34, 41-42, 55-56, 61-73, 75, 78-118, 121-122, 124-130, 150-155`.
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum InstructionId {
     Empty = 0,
     Back = 1,
