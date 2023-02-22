@@ -21,7 +21,7 @@ use crate::formats::native::new::diagnostics::{Diagnostics, NoMagicFound, Unknow
 use crate::utils::{CharPosition, EnumerateWithPosition};
 
 mod data;
-use data::{Node, DATA};
+use data::{NTF2INode, NTF2I};
 
 // region: errors
 
@@ -252,16 +252,16 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                 let mut value: Option<VariableValueLiteral> = None;
                 let mut next_char: Option<char> = None;
 
-                match &DATA.binary_search_by_key(&first_char, |&(ch, _)| ch) {
+                match &NTF2I.binary_search_by_key(&first_char, |&(ch, _)| ch) {
                     Err(_) => return Err(UnknownInstruction { index: self.index }.into()),
                     Ok(x) => {
-                        let mut the_node = &DATA[*x].1;
+                        let mut the_node = &NTF2I[*x].1;
                         loop {
                             match the_node {
-                                Node::Command(command) => {
+                                NTF2INode::Command(command) => {
                                     return Ok(Some(InstructionOrCommand::Command(*command)))
                                 }
-                                Node::Id(id) => {
+                                NTF2INode::Id(id) => {
                                     return match id.kind() {
                                         InstructionKind::Simple => {
                                             Ok(Instruction::new_simple(*id).unwrap().into())
@@ -285,7 +285,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                                         .into()),
                                     }
                                 }
-                                Node::Literal((literal, node)) => {
+                                NTF2INode::Literal((literal, node)) => {
                                     match literal {
                                         LiteralType::LabelIdentifierLiteral => {
                                             let (literal, next_char_) =
@@ -343,7 +343,7 @@ impl<'p, 'e> TextFormatDeserializer<'p, 'e> {
                                     the_node = &node[0]; // in this case only one node can be
                                     continue;
                                 }
-                                Node::Chars(current) => {
+                                NTF2INode::Chars(current) => {
                                     let next_char = match next_char {
                                         None => self.get_next_char()?,
                                         Some(c) => c,
@@ -491,7 +491,7 @@ impl<'s> TextFormatDeserializerV2<'s> {
 
         // loop to find first valid char to start token with
         loop {
-            match &DATA.binary_search_by_key(&self.token_start.1, |&(ch, _)| ch) {
+            match &NTF2I.binary_search_by_key(&self.token_start.1, |&(ch, _)| ch) {
                 // that isn't a valid char to start token with. It needs to update
                 // `self.illegal_chars` and set up the new value to the `self.token_start`
                 Err(_) => {
@@ -510,19 +510,19 @@ impl<'s> TextFormatDeserializerV2<'s> {
 
                 // That's a valid char to start token with
                 Ok(i) => {
-                    let mut node = &DATA[*i].1;
+                    let mut node = &NTF2I[*i].1;
 
                     // loop over nodes util full token will be read
                     loop {
                         match node {
-                            Node::Command(command) => {
+                            NTF2INode::Command(command) => {
                                 if let Some((start, end)) = self.illegal_chars {
                                     self.diagnostics.push(UnknownToken::new(start, end).into())
                                 }
 
                                 return Some(InstructionOrCommand::Command(*command));
                             }
-                            Node::Id(id) => {
+                            NTF2INode::Id(id) => {
                                 if let Some((start, end)) = self.illegal_chars {
                                     self.diagnostics.push(UnknownToken::new(start, end).into())
                                 }
@@ -534,10 +534,10 @@ impl<'s> TextFormatDeserializerV2<'s> {
                                     _ => todo!(),
                                 };
                             }
-                            Node::Literal(_) => {
+                            NTF2INode::Literal(_) => {
                                 todo!()
                             }
-                            Node::Chars(current) => {
+                            NTF2INode::Chars(current) => {
                                 let next_char = self.next_char()?;
                                 match current.binary_search_by_key(&next_char.1, |&(ch, _)| ch) {
                                     // Means we have unknown char at the middle of token (second or further char)
