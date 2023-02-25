@@ -35,7 +35,7 @@ pub(super) static I2NTF: [(InstructionId, &'static [I2NTFNode]); 107] = [
     (InstructionId::LookD, &[I2NTFNode::Chars(b"d")]),
     (InstructionId::MoveF, &[I2NTFNode::Chars(b"^F")]),
     (InstructionId::RotateCcw, &[I2NTFNode::Chars(b"CCW;")]),
-    (InstructionId::RotateCw, &[I2NTFNode::Chars(b"^CW;")]),
+    (InstructionId::RotateCw, &[I2NTFNode::Chars(b"CW;")]),
     (InstructionId::ActionBuild, &[I2NTFNode::Chars(b"b")]),
     (InstructionId::ActionGeo, &[I2NTFNode::Chars(b"g")]),
     (InstructionId::ActionRoad, &[I2NTFNode::Chars(b"r")]),

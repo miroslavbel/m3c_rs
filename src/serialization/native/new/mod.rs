@@ -5,14 +5,17 @@
 
 use std::{
     error::Error,
-    fmt,
+    fmt, io,
     iter::{Enumerate, Peekable},
     str::Chars,
 };
 
-use crate::formats::internal::literals::{
-    LabelIdentifierLiteral, Literal, LiteralType, StringLiteral, VariableIdentifierLiteral,
-    VariableValueLiteral,
+use crate::formats::internal::{
+    literals::{
+        LabelIdentifierLiteral, Literal, LiteralType, StringLiteral, VariableIdentifierLiteral,
+        VariableValueLiteral,
+    },
+    InstructionData, InstructionId,
 };
 use crate::formats::internal::{
     Instruction, InstructionKind, InstructionPosition, InstructionPositionOverflowError, Program,
@@ -22,6 +25,8 @@ use crate::utils::{CharPosition, EnumerateWithPosition};
 
 mod data;
 use data::{NTF2INode, NTF2I};
+
+use self::data::{I2NTFNode, I2NTF};
 
 // region: errors
 
@@ -585,5 +590,286 @@ impl<'s> TextFormatDeserializerV2<'s> {
                 None
             }
         }
+    }
+}
+
+/// A structure that serializes New Text format from [Internal format](crate::formats::internal).
+#[derive(Debug, Clone, Copy)]
+pub struct TextFormatSerializer<'p> {
+    program: &'p Program,
+}
+
+impl<'p> TextFormatSerializer<'p> {
+    /// Creates a new [`TextFormatSerializer`].
+    pub fn new(program: &'p Program) -> Self {
+        Self { program: program }
+    }
+    /// Serializes program from [Internal format](crate::formats::internal).
+    ///
+    /// It is guaranteed that all bytes written to the given `writer` are valid ASCII characters.
+    ///
+    /// # Errors
+    ///
+    /// As this function internally uses the [`io::Write::write_all`] method, see the error section
+    /// of this method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use m3c::formats::internal::{Instruction, InstructionId, Program};
+    /// use m3c::serialization::native::new::TextFormatSerializer;
+    ///
+    /// // buffer for writing
+    /// let mut buf = vec![];
+    ///
+    /// // build a simple program
+    /// let mut program = Program::default();
+    /// program[0] = Instruction::new_simple(InstructionId::MoveW).unwrap();
+    /// program[1] = Instruction::new_simple(InstructionId::MoveS).unwrap();
+    ///
+    /// // serialize it to NewTextFormat
+    /// let mut se = TextFormatSerializer::new(&program);
+    /// se.serialize(&mut buf).unwrap();
+    ///
+    /// assert_eq!(b"$^W^S", &buf[..])
+    /// ```
+    pub fn serialize<W>(&mut self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        // write magic
+        writer.write_all(b"$")?;
+
+        // Here it isn't necessary to check if the first instruction is really not `Empty`,
+        // because this is the beginning of the program
+        let mut last_not_empty = InstructionPosition::default();
+
+        for (pos, ins) in self.program.instruction_positions() {
+            match ins.id() {
+                InstructionId::Empty => {
+                    continue;
+                }
+                _ => {
+                    last_not_empty.write_delta(pos, writer)?;
+                    last_not_empty = pos;
+
+                    let i = I2NTF.binary_search_by_key(&ins.id(), |&(a, _)| a).unwrap();
+                    let (_, node_list) = I2NTF[i];
+
+                    for node in node_list {
+                        match node {
+                            I2NTFNode::Chars(x) => {
+                                writer.write_all(x)?;
+                            }
+                            I2NTFNode::Literal(lt) => match ins.data() {
+                                InstructionData::Label(literal)
+                                    if matches!(lt, LiteralType::LabelIdentifierLiteral) =>
+                                {
+                                    literal.write_all(writer)?;
+                                }
+                                InstructionData::String(literal)
+                                    if matches!(lt, LiteralType::StringLiteral) =>
+                                {
+                                    literal.write_all(writer)?;
+                                }
+                                InstructionData::VarCmp((literal, _))
+                                    if matches!(lt, LiteralType::VariableIdentifierLiteral) =>
+                                {
+                                    literal.write_all(writer)?;
+                                }
+                                InstructionData::VarCmp((_, literal))
+                                    if matches!(lt, LiteralType::VariableValueLiteral) =>
+                                {
+                                    literal.write_all(writer)?;
+                                }
+                                _ => {
+                                    unreachable!("the I2NTF data is corrupt")
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl InstructionPosition {
+    /// Writes the delta between `self` and `other`.
+    ///
+    /// # Safety
+    ///
+    /// `other` must be equal or greater than `self`.
+    fn write_delta<W>(&self, other: Self, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        if other.index() - self.index() <= 1 {
+            return Ok(());
+        }
+        if self.page() == other.page() {
+            if self.row() == other.row() {
+                let delta = other.column() - self.column();
+                match delta {
+                    0..=1 => return Ok(()),
+                    _ => InstructionPosition::write_empty_columns(delta - 1, writer),
+                }
+            } else {
+                let empty_rows = other.row() - self.row() - 1;
+                InstructionPosition::write_empty_rows(empty_rows, writer)?;
+                InstructionPosition::write_empty_columns(other.column(), writer)
+            }
+        } else {
+            InstructionPosition::write_page_delta(other.page() - self.page(), writer)?;
+            InstructionPosition::write_empty_rows(other.row(), writer)?;
+            InstructionPosition::write_empty_columns(other.column(), writer)
+        }
+    }
+    fn write_page_delta<W>(mut n: u8, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        while n > 1 {
+            writer.write_all(b"~\n")?;
+            n -= 1;
+        }
+        writer.write_all(b"~")
+    }
+    fn write_empty_rows<W>(mut n: u8, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        writer.write_all(b"\n")?;
+        if n > 10 {
+            return Self::write_empty_rows(10, writer);
+        }
+        while n > 4 {
+            let mut buf = [b'.', b'0', b'.'];
+            if n < 10 {
+                buf[1] = n + b'0';
+            }
+            writer.write_all(&buf)?;
+            n -= n - 1;
+        }
+        while n > 1 {
+            writer.write_all(b".")?;
+            n -= 1;
+        }
+        while n > 0 {
+            writer.write_all(b"\n")?;
+            n -= 1;
+        }
+        Ok(())
+    }
+    fn write_empty_columns<W>(mut n: u8, writer: &mut W) -> io::Result<()>
+    where
+        W: io::Write,
+    {
+        while n > 2 {
+            writer.write_all(b"_")?;
+            n -= 3;
+        }
+        while n > 0 {
+            writer.write_all(b" ")?;
+            n -= 1;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::formats::internal::InstructionPosition;
+
+    #[test]
+    fn columns() {
+        let mut buf = vec![];
+        // 0
+        InstructionPosition::write_empty_columns(0, &mut buf).unwrap();
+        assert_eq!("".as_bytes(), buf);
+        buf.clear();
+        // 1
+        InstructionPosition::write_empty_columns(1, &mut buf).unwrap();
+        assert_eq!(" ".as_bytes(), buf);
+        buf.clear();
+        // 2
+        InstructionPosition::write_empty_columns(2, &mut buf).unwrap();
+        assert_eq!("  ".as_bytes(), buf);
+        buf.clear();
+        // 3
+        InstructionPosition::write_empty_columns(3, &mut buf).unwrap();
+        assert_eq!("_".as_bytes(), buf);
+        buf.clear();
+        // 4
+        InstructionPosition::write_empty_columns(4, &mut buf).unwrap();
+        assert_eq!("_ ".as_bytes(), buf);
+        buf.clear();
+        // 5
+        InstructionPosition::write_empty_columns(5, &mut buf).unwrap();
+        assert_eq!("_  ".as_bytes(), buf);
+        buf.clear();
+        // 6
+        InstructionPosition::write_empty_columns(6, &mut buf).unwrap();
+        assert_eq!("__".as_bytes(), buf);
+        buf.clear();
+    }
+
+    #[test]
+    fn rows() {
+        let mut buf = vec![];
+        // 0
+        InstructionPosition::write_empty_rows(0, &mut buf).unwrap();
+        assert_eq!("\n".as_bytes(), buf);
+        buf.clear();
+        // 1
+        InstructionPosition::write_empty_rows(1, &mut buf).unwrap();
+        assert_eq!("\n\n".as_bytes(), buf);
+        buf.clear();
+        // 2
+        InstructionPosition::write_empty_rows(2, &mut buf).unwrap();
+        assert_eq!("\n.\n".as_bytes(), buf);
+        buf.clear();
+        // 3
+        InstructionPosition::write_empty_rows(3, &mut buf).unwrap();
+        assert_eq!("\n..\n".as_bytes(), buf);
+        buf.clear();
+        // 4
+        InstructionPosition::write_empty_rows(4, &mut buf).unwrap();
+        assert_eq!("\n...\n".as_bytes(), buf);
+        buf.clear();
+        // 5
+        InstructionPosition::write_empty_rows(5, &mut buf).unwrap();
+        assert_eq!("\n.5.\n".as_bytes(), buf);
+        buf.clear();
+        // 6
+        InstructionPosition::write_empty_rows(6, &mut buf).unwrap();
+        assert_eq!("\n.6.\n".as_bytes(), buf);
+        buf.clear();
+        // 10
+        InstructionPosition::write_empty_rows(10, &mut buf).unwrap();
+        assert_eq!("\n.0.\n".as_bytes(), buf);
+        buf.clear();
+        // 11
+        InstructionPosition::write_empty_rows(11, &mut buf).unwrap();
+        assert_eq!("\n\n.0.\n".as_bytes(), buf);
+        buf.clear();
+    }
+
+    #[test]
+    fn pages() {
+        let mut buf = vec![];
+        // 0
+        InstructionPosition::write_page_delta(0, &mut buf).unwrap();
+        assert_eq!("~".as_bytes(), buf);
+        buf.clear();
+        // 1
+        InstructionPosition::write_page_delta(1, &mut buf).unwrap();
+        assert_eq!("~".as_bytes(), buf);
+        buf.clear();
+        // 2
+        InstructionPosition::write_page_delta(2, &mut buf).unwrap();
+        assert_eq!("~\n~".as_bytes(), buf);
+        buf.clear();
     }
 }
