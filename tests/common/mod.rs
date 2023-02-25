@@ -41,8 +41,15 @@ pub mod native {
             "<|"
         );
 
+        /// A string for testing commands. Not all commands are present.
+        pub static NOT_ALL_COMMANDS: &str = "$^W\n^A~^D_^F ^S";
+
         /// A string for testing commands.
-        pub static COMMANDS: &str = "$^W\n^A~^D_^F ^S";
+        pub static COMMANDS: &str = concat!(
+            "$^W ^W  ^W_^W_ ^W\n_  ^W__^W\n__ ^W\n__  ^W\n___^W\n___ ^W\n___  ^W\n____^W\n____ ^W\n____  ^W\n_____^W~\n",
+            "^D\n ^D\n\n  ^D\n.\n_^D\n..\n_ ^D~\n_  ^D\n...\n__^D\n.5.\n__ ^D~\n\n.0.\n__  ^D~\n~\n",
+            "^S~\n~\n~\n^S~\n~\n~\n~\n~\n~\n^S"
+        );
 
         /// A string for testing all not-`Simple` kind instruction.
         pub static LITERALS: &str = concat!(

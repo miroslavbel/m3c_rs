@@ -155,8 +155,8 @@ pub fn all_simple() -> Program {
     program
 }
 
-/// Returns a program for testing commands.
-pub fn commands() -> Program {
+/// Returns a program for testing commands. Not all commands are present.
+pub fn not_all_commands() -> Program {
     let mut program = Program::default();
     program[InstructionPosition::new(0, 0, 0).unwrap()] =
         Instruction::new_simple(InstructionId::MoveW).unwrap();
@@ -168,6 +168,72 @@ pub fn commands() -> Program {
         Instruction::new_simple(InstructionId::MoveF).unwrap();
     program[InstructionPosition::new(1, 0, 6).unwrap()] =
         Instruction::new_simple(InstructionId::MoveS).unwrap();
+    program
+}
+
+/// Returns a program for testing commands.
+pub fn commands() -> Program {
+    let mut program = Program::default();
+    // columns
+    program[InstructionPosition::new(0, 0, 0).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 0, 2).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 0, 5).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 0, 9).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 0, 14).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 1, 5).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 1, 12).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 2, 7).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 3, 8).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 4, 9).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 5, 10).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 6, 11).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 7, 12).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 8, 13).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 9, 14).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    program[InstructionPosition::new(0, 10, 15).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveW).unwrap();
+    // rows
+    program[InstructionPosition::new(1, 0, 0).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(1, 1, 1).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(1, 3, 2).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(1, 6, 3).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(1, 10, 4).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(2, 0, 5).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(2, 5, 6).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(2, 11, 7).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    program[InstructionPosition::new(3, 11, 8).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveD).unwrap();
+    // pages
+    program[InstructionPosition::new(5, 0, 0).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveS).unwrap();
+    program[InstructionPosition::new(8, 0, 0).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveS).unwrap();
+    program[InstructionPosition::new(14, 0, 0).unwrap()] =
+        Instruction::new_simple(InstructionId::MoveS).unwrap();
+    // return
     program
 }
 
